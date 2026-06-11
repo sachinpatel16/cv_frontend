@@ -1,0 +1,138 @@
+import { BarChart2, Activity, Search, Eye } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+export interface Service {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  description: string;
+  milestone: 1 | 2;
+  comingSoon: boolean;
+}
+
+export const SERVICES_REGISTRY: Service[] = [
+  {
+    id: 'object-counting',
+    label: 'Object Counting',
+    icon: BarChart2,
+    href: '/services/object-counting',
+    description:
+      'Count any of 80 COCO classes per frame with entry/exit tracking and heatmap export.',
+    milestone: 1,
+    comingSoon: false,
+  },
+  {
+    id: 'activity-detection',
+    label: 'Activity Detection',
+    icon: Activity,
+    href: '/services/activity-detection',
+    description:
+      'Flag suspicious events with timestamps, screenshots, and video clips.',
+    milestone: 1,
+    comingSoon: false,
+  },
+  {
+    id: 'person-search',
+    label: 'Person / Object Search',
+    icon: Search,
+    href: '/services/person-search',
+    description:
+      'Find anyone across hours of footage using visual similarity matching.',
+    milestone: 1,
+    comingSoon: false,
+  },
+  {
+    id: 'license-plate',
+    label: 'License Plate Recognition',
+    icon: Eye,
+    href: '/services/license-plate',
+    description:
+      'Automatically read and log vehicle license plates from footage.',
+    milestone: 2,
+    comingSoon: true,
+  },
+];
+
+export const COCO_CLASSES = [
+  'person',
+  'bicycle',
+  'car',
+  'motorcycle',
+  'airplane',
+  'bus',
+  'train',
+  'truck',
+  'boat',
+  'traffic light',
+  'fire hydrant',
+  'stop sign',
+  'parking meter',
+  'bench',
+  'bird',
+  'cat',
+  'dog',
+  'horse',
+  'sheep',
+  'cow',
+  'elephant',
+  'bear',
+  'zebra',
+  'giraffe',
+  'backpack',
+  'umbrella',
+  'handbag',
+  'tie',
+  'suitcase',
+  'frisbee',
+  'skis',
+  'snowboard',
+  'sports ball',
+  'kite',
+  'baseball bat',
+  'baseball glove',
+  'skateboard',
+  'surfboard',
+  'tennis racket',
+  'bottle',
+  'wine glass',
+  'cup',
+  'fork',
+  'knife',
+  'spoon',
+  'bowl',
+  'banana',
+  'apple',
+  'sandwich',
+  'orange',
+  'broccoli',
+  'carrot',
+  'hot dog',
+  'pizza',
+  'donut',
+  'cake',
+  'chair',
+  'couch',
+  'potted plant',
+  'bed',
+  'dining table',
+  'toilet',
+  'tv',
+  'laptop',
+  'mouse',
+  'remote',
+  'keyboard',
+  'cell phone',
+  'microwave',
+  'oven',
+  'toaster',
+  'sink',
+  'refrigerator',
+  'book',
+  'clock',
+  'vase',
+  'scissors',
+  'teddy bear',
+  'hair drier',
+  'toothbrush',
+];
