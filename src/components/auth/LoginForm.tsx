@@ -3,13 +3,11 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Eye, EyeOff, Loader2, Github } from 'lucide-react';
+import toast from 'react-hot-toast';
 
-export function LoginForm({
-  onSwitchToSignup,
-}: {
-  onSwitchToSignup?: () => void;
-}) {
+export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +19,22 @@ export function LoginForm({
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // // Client-side validation
+    // const errors: string[] = [];
+    // if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    //   errors.push('Please enter a valid email address');
+    // }
+    // if (password.length < 6) {
+    //   errors.push('Password must be at least 6 characters');
+    // }
+    // if (errors.length > 0) {
+    //   errors.forEach((err) => toast.error(err));
+    //   setError(errors.join('\n'));
+    //   setLoading(false);
+    //   return;
+    // }
+
     const result = await signIn('credentials', {
       email,
       password,
@@ -28,8 +42,10 @@ export function LoginForm({
     });
     setLoading(false);
     if (result?.error) {
-      setError('Invalid email or password. Try demo@vigilens.com / demo123');
+      toast.error(`${result.error}`);
+      setError(`${result.error}`);
     } else {
+      toast.success('Login successful');
       router.push('/dashboard');
     }
   }
@@ -151,17 +167,15 @@ export function LoginForm({
         </button>
       </div>
 
-      {onSwitchToSignup && (
-        <p className="text-center text-sm text-gray-500">
-          Don&apos;t have an account?{' '}
-          <button
-            onClick={onSwitchToSignup}
-            className="font-medium text-[#1565C0] hover:underline"
-          >
-            Sign up
-          </button>
-        </p>
-      )}
+      <p className="text-center text-sm text-gray-500">
+        Don&apos;t have an account?{' '}
+        <Link
+          href="/signup"
+          className="font-medium text-[#1565C0] hover:underline"
+        >
+          Sign up
+        </Link>
+      </p>
     </div>
   );
 }
