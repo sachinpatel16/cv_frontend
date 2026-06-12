@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import { Eye, LayoutDashboard, FileText, Settings, LogOut } from 'lucide-react';
 import { SERVICES_REGISTRY } from '@/lib/services';
 import { cn } from '@/lib/utils';
+import { logout } from '@/lib/api/auth';
 
 const topNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -95,7 +96,12 @@ export function Sidebar() {
       {/* Sign out */}
       <div className="border-t border-[#1E3048] p-3">
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={async () => {
+            try {
+              await logout();
+            } catch {}
+            signOut({ callbackUrl: '/login' });
+          }}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
         >
           <LogOut className="h-4 w-4 shrink-0" />

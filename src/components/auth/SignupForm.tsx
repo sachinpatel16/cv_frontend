@@ -43,40 +43,28 @@ export function SignupForm({
     setLoading(true);
     setError('');
 
-    // // Client-side validation
-    // const errors: string[] = [];
-    // if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    //   errors.push('Please enter a valid email address');
-    // }
-    // if (form.password.length < 6) {
-    //   errors.push('Password must be at least 6 characters');
-    // }
-    // if (errors.length > 0) {
-    //   const msg = errors.join('\n');
-    //   setError(msg);
-    //   errors.forEach((err) => toast.error(err));
-    //   setLoading(false);
-    //   return;
-    // }
-    console.log('Inside handleSubmit');
     try {
-      await register({
+      // Step 1: Call backend register — cookies are auto-set by the browser
+      const response = await register({
         email: form.email,
         password: form.password,
         first_name: form.firstName,
         last_name: form.lastName,
       });
+      const user = response.data;
 
-      // Auto sign-in after successful registration
+      // Step 2: Create NextAuth session by passing user data
       const result = await signIn('credentials', {
-        email: form.email,
-        password: form.password,
         redirect: false,
+        email: user.email,
+        id: user.id,
+        name: `${user.first_name} ${user.last_name}`,
+        role: user.role,
+        tenantId: user.tenant_id,
       });
-      console.log('SIGNUP Result:', result);
 
       if (result?.error) {
-        toast.error(`${result.error}`);
+        toast.error('Failed to create session');
         router.push('/login');
       } else {
         toast.success('Account created successfully');

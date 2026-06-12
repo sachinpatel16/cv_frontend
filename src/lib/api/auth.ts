@@ -3,7 +3,12 @@ import { apiClient } from './client';
 import { API_ENDPOINTS } from './endpoints';
 import { ApiError } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
-import type { LoginRequest, RegisterRequest, AuthTokens } from '@/types/auth';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  ChangePasswordRequest,
+  AuthUser,
+} from '@/types/auth';
 
 /**
  * Parse FastAPI / backend error responses into user-friendly messages.
@@ -20,7 +25,6 @@ function parseApiError(data: unknown, fallback: string): string {
     const messages = d.detail.map((err: { loc?: string[]; msg?: string }) => {
       const field = err.loc?.filter((l) => l !== 'body').pop() ?? '';
       const msg = err.msg ?? '';
-      // Capitalize field name and make it readable
       const label = field
         .replace(/_/g, ' ')
         .replace(/^\w/, (c) => c.toUpperCase());
@@ -38,11 +42,16 @@ function parseApiError(data: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * Login — calls backend directly. The backend sets HttpOnly cookies
+ * (access_token, refresh_token) via Set-Cookie headers.
+ * Returns the user profile from the response body.
+ */
 export async function login(
   data: LoginRequest,
-): Promise<ApiResponse<AuthTokens>> {
+): Promise<ApiResponse<AuthUser>> {
   try {
-    const response = await apiClient.post<ApiResponse<AuthTokens>>(
+    const response = await apiClient.post<ApiResponse<AuthUser>>(
       API_ENDPOINTS.AUTH.LOGIN,
       data,
     );
@@ -58,22 +67,104 @@ export async function login(
   }
 }
 
+/**
+ * Register — calls backend directly. The backend sets HttpOnly cookies
+ * (access_token, refresh_token) via Set-Cookie headers.
+ * Returns the user profile from the response body.
+ */
 export async function register(
   data: RegisterRequest,
-): Promise<ApiResponse<AuthTokens>> {
+): Promise<ApiResponse<AuthUser>> {
   try {
-    console.log('Inside Register', data);
-    console.log('endpoint', API_ENDPOINTS.AUTH.REGISTER);
-    const response = await apiClient.post<ApiResponse<AuthTokens>>(
+    const response = await apiClient.post<ApiResponse<AuthUser>>(
       API_ENDPOINTS.AUTH.REGISTER,
       data,
     );
-    console.log('RESPONSE', response);
     return response.data;
   } catch (error) {
     if (error instanceof AxiosError) {
       throw new ApiError(
         parseApiError(error.response?.data, 'Registration failed'),
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}
+
+/**
+ * Logout — tells the backend to clear the HttpOnly cookies.
+ */
+export async function logout(): Promise<void> {
+  try {
+    await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        parseApiError(error.response?.data, 'Logout failed'),
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}
+
+/**
+ * Get current user profile — authenticated via cookie.
+ */
+export async function getMe(): Promise<ApiResponse<AuthUser>> {
+  try {
+    const response = await apiClient.get<ApiResponse<AuthUser>>(
+      API_ENDPOINTS.AUTH.ME,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        parseApiError(error.response?.data, 'Failed to fetch profile'),
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}
+
+/**
+ * Refresh tokens — backend reads refresh_token cookie and sets new cookies.
+ */
+export async function refreshTokens(): Promise<ApiResponse<AuthUser>> {
+  try {
+    const response = await apiClient.post<ApiResponse<AuthUser>>(
+      API_ENDPOINTS.AUTH.REFRESH,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        parseApiError(error.response?.data, 'Token refresh failed'),
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}
+
+/**
+ * Change password — authenticated via cookie.
+ */
+export async function changePassword(
+  data: ChangePasswordRequest,
+): Promise<ApiResponse<null>> {
+  try {
+    const response = await apiClient.post<ApiResponse<null>>(
+      API_ENDPOINTS.AUTH.CHANGE_PASSWORD,
+      data,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        parseApiError(error.response?.data, 'Password change failed'),
         error.response?.status,
       );
     }
