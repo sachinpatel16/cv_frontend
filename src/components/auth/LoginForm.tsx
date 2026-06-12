@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Eye, EyeOff, Loader2, Github } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { login } from '@/lib/api/auth';
+import { ApiError } from '@/types/api';
 
 export function LoginForm() {
   const router = useRouter();
@@ -20,33 +22,38 @@ export function LoginForm() {
     setLoading(true);
     setError('');
 
-    // // Client-side validation
-    // const errors: string[] = [];
-    // if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    //   errors.push('Please enter a valid email address');
-    // }
-    // if (password.length < 6) {
-    //   errors.push('Password must be at least 6 characters');
-    // }
-    // if (errors.length > 0) {
-    //   errors.forEach((err) => toast.error(err));
-    //   setError(errors.join('\n'));
-    //   setLoading(false);
-    //   return;
-    // }
+    try {
+      // Step 1: Call backend directly from browser — cookies are auto-set
+      const response = await login({ email, password });
+      const user = response.data;
 
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-    setLoading(false);
-    if (result?.error) {
-      toast.error(`${result.error}`);
-      setError(`${result.error}`);
-    } else {
-      toast.success('Login successful');
-      router.push('/dashboard');
+      // Step 2: Create NextAuth session by passing user data
+      const result = await signIn('credentials', {
+        redirect: false,
+        email: user.email,
+        id: user.id,
+        name: `${user.first_name} ${user.last_name}`,
+        role: user.role,
+        tenantId: user.tenant_id,
+      });
+
+      if (result?.error) {
+        toast.error('Failed to create session');
+        setError('Failed to create session');
+      } else {
+        toast.success('Login successful');
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        err.message.split('\n').forEach((line) => toast.error(line));
+        setError(err.message);
+      } else {
+        toast.error('An unexpected error occurred');
+        setError('An unexpected error occurred');
+      }
+    } finally {
+      setLoading(false);
     }
   }
 

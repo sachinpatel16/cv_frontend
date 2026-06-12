@@ -1,6 +1,6 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import { login } from '@/lib/api/auth';
+import { getMe } from '@/lib/api/auth';
 import { ApiError } from '@/types/api';
 
 export const authOptions: NextAuthOptions = {
@@ -12,25 +12,21 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        // With the cookie-based flow, login() is called from the browser
+        // directly (so the browser receives the Set-Cookie headers).
+        // By the time authorize() is called, we just need to verify the
+        // user info. The frontend passes user data via the credentials object.
+        if (!credentials?.email) return null;
 
         try {
-          const result = await login({
-            email: credentials.email,
-            password: credentials.password,
-          });
-
-          const { user, access_token, refresh_token } = result.data;
-
+          // The frontend already called login() and has the user data.
+          // We trust the data passed from the frontend signIn() call.
           return {
-            id: user.id,
-            email: user.email,
-            name: `${user.first_name} ${user.last_name}`,
-            image: null,
-            accessToken: access_token,
-            refreshToken: refresh_token,
-            role: user.role,
-            tenantId: user.tenant_id,
+            id: (credentials as Record<string, string>).id ?? '',
+            email: credentials.email,
+            name: (credentials as Record<string, string>).name ?? '',
+            role: (credentials as Record<string, string>).role ?? '',
+            tenantId: (credentials as Record<string, string>).tenantId ?? '',
           };
         } catch (error) {
           if (error instanceof ApiError) {
@@ -47,8 +43,6 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
-        token.accessToken = user.accessToken;
-        token.refreshToken = user.refreshToken;
         token.role = user.role;
         token.tenantId = user.tenantId;
       }
@@ -56,7 +50,6 @@ export const authOptions: NextAuthOptions = {
     },
     async session({ session, token }) {
       session.user.id = token.id;
-      session.user.accessToken = token.accessToken;
       session.user.role = token.role;
       session.user.tenantId = token.tenantId;
       return session;

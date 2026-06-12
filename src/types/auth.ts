@@ -13,8 +13,14 @@ export interface RegisterRequest {
   tenant_id?: string;
 }
 
+export interface ChangePasswordRequest {
+  old_password: string;
+  new_password: string;
+}
+
 // ── Response DTOs ──
 
+/** User profile returned by login, register, refresh, and /auth/me */
 export interface AuthUser {
   id: string;
   first_name: string;
@@ -22,12 +28,4 @@ export interface AuthUser {
   email: string;
   role: string;
   tenant_id: string;
-}
-
-export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: AuthUser;
 }
