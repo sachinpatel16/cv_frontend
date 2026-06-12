@@ -1,8 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { register } from '@/lib/api/auth';
+import { ApiError } from '@/types/api';
+import toast from 'react-hot-toast';
 
 function getStrength(p: string) {
   if (!p) return { label: '', color: 'bg-gray-200', w: 'w-0' };
@@ -37,9 +42,57 @@ export function SignupForm({
     e.preventDefault();
     setLoading(true);
     setError('');
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-    router.push('/dashboard');
+
+    // // Client-side validation
+    // const errors: string[] = [];
+    // if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    //   errors.push('Please enter a valid email address');
+    // }
+    // if (form.password.length < 6) {
+    //   errors.push('Password must be at least 6 characters');
+    // }
+    // if (errors.length > 0) {
+    //   const msg = errors.join('\n');
+    //   setError(msg);
+    //   errors.forEach((err) => toast.error(err));
+    //   setLoading(false);
+    //   return;
+    // }
+    console.log('Inside handleSubmit');
+    try {
+      await register({
+        email: form.email,
+        password: form.password,
+        first_name: form.firstName,
+        last_name: form.lastName,
+      });
+
+      // Auto sign-in after successful registration
+      const result = await signIn('credentials', {
+        email: form.email,
+        password: form.password,
+        redirect: false,
+      });
+      console.log('SIGNUP Result:', result);
+
+      if (result?.error) {
+        toast.error(`${result.error}`);
+        router.push('/login');
+      } else {
+        toast.success('Account created successfully');
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        error.message.split('\n').forEach((line) => toast.error(line));
+        setError(error.message);
+      } else {
+        toast.error('An unexpected error occurred. Please try again.');
+        setError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -136,9 +189,11 @@ export function SignupForm({
         </div>
 
         {error && (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-            {error}
-          </p>
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+            {error.split('\n').map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
         )}
 
         <button
@@ -165,17 +220,24 @@ export function SignupForm({
         </p>
       </form>
 
-      {onSwitchToLogin && (
-        <p className="text-center text-sm text-gray-500">
-          Already have an account?{' '}
+      <p className="text-center text-sm text-gray-500">
+        Already have an account?{' '}
+        {onSwitchToLogin ? (
           <button
             onClick={onSwitchToLogin}
             className="font-medium text-[#1565C0] hover:underline"
           >
             Sign in
           </button>
-        </p>
-      )}
+        ) : (
+          <Link
+            href="/login"
+            className="font-medium text-[#1565C0] hover:underline"
+          >
+            Sign in
+          </Link>
+        )}
+      </p>
     </div>
   );
 }

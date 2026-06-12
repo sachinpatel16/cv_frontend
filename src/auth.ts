@@ -1,5 +1,7 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { login } from '@/lib/api/auth';
+import { ApiError } from '@/types/api';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -10,54 +12,53 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log('Auth file loaded');
-        console.log(
-          'Secret:',
-          process.env.NEXTAUTH_SECRET || 'vigilens-dev-secret',
-        );
         if (!credentials?.email || !credentials?.password) return null;
-        const mockUsers = [
-          {
-            id: '1',
-            email: 'demo@vigilens.com',
-            password: 'demo123',
-            name: 'Alex Morgan',
+
+        try {
+          const result = await login({
+            email: credentials.email,
+            password: credentials.password,
+          });
+
+          const { user, access_token, refresh_token } = result.data;
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: `${user.first_name} ${user.last_name}`,
             image: null,
-          },
-          {
-            id: '2',
-            email: 'test@vigilens.com',
-            password: 'password',
-            name: 'Jordan Lee',
-            image: null,
-          },
-        ];
-        console.log('credential', credentials);
-        const user = mockUsers.find(
-          (u) =>
-            u.email === credentials.email &&
-            u.password === credentials.password,
-        );
-        if (!user) return null;
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
+            accessToken: access_token,
+            refreshToken: refresh_token,
+            role: user.role,
+            tenantId: user.tenant_id,
+          };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            throw new Error(error.message);
+          }
+          return null;
+        }
       },
     }),
   ],
   session: { strategy: 'jwt' },
-  pages: { signIn: '/login', error: '/dashboard' },
+  pages: { signIn: '/login', error: '/login', newUser: '/signup' },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user) {
+        token.id = user.id!;
+        token.accessToken = user.accessToken;
+        token.refreshToken = user.refreshToken;
+        token.role = user.role;
+        token.tenantId = user.tenantId;
+      }
       return token;
     },
     async session({ session, token }) {
-      if (token && session.user)
-        (session.user as { id?: string }).id = token.id as string;
+      session.user.id = token.id;
+      session.user.accessToken = token.accessToken;
+      session.user.role = token.role;
+      session.user.tenantId = token.tenantId;
       return session;
     },
   },

@@ -50,7 +50,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-[#1E3048] bg-[#0A0F1E]">
+    <aside className="flex w-auto shrink-0 flex-col border-r border-[#1E3048] bg-[#0A0F1E]">
       {/* Logo */}
       <div className="flex h-14 items-center gap-2.5 border-b border-[#1E3048] px-4">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1565C0]">
