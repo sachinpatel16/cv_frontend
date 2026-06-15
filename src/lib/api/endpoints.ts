@@ -7,4 +7,10 @@ export const API_ENDPOINTS = {
     ME: '/auth/me',
     CHANGE_PASSWORD: '/auth/change-password',
   },
+  PEOPLEFIND: {
+    MEDIA: '/peoplefind/media',
+    SEARCH: '/peoplefind/search',
+    SEARCH_VIDEO: '/peoplefind/search-video',
+    SESSIONS: '/peoplefind/sessions',
+  },
 } as const;
