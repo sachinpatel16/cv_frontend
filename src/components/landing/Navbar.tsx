@@ -14,7 +14,7 @@ export function Navbar() {
             <Eye className="h-4 w-4 text-white" />
           </div>
           <span className="text-base font-semibold text-[#E8EDF5]">
-            Vigilens
+            CV-Powered Video Analytics
           </span>
         </Link>
 

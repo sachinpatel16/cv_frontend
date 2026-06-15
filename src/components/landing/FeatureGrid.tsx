@@ -25,9 +25,9 @@ const features = [
   },
   {
     icon: Search,
-    title: 'Person / Object Search',
+    title: 'Person Search',
     description:
-      'Find any person or object across hours of footage using visual similarity matching with adjustable confidence thresholds.',
+      'Find any person across hours of footage using visual similarity matching with adjustable confidence thresholds.',
   },
 ];
 
