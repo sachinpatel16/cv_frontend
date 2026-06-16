@@ -251,6 +251,20 @@ export default function PersonSearchPage() {
     fetchMedia(false);
   }, [fetchMedia]);
 
+  // Poll media statuses if any item is pending or processing
+  useEffect(() => {
+    const hasPendingOrProcessing = media.some(
+      (m) => m.status === 'pending' || m.status === 'processing',
+    );
+    if (!hasPendingOrProcessing) return;
+
+    const interval = setInterval(() => {
+      fetchMedia(false);
+    }, 10000); // Poll every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [media, fetchMedia]);
+
   // Fetch history once on mount
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
