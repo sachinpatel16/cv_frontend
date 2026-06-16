@@ -12,5 +12,6 @@ export const API_ENDPOINTS = {
     SEARCH: '/peoplefind/search',
     SEARCH_VIDEO: '/peoplefind/search-video',
     SESSIONS: '/peoplefind/sessions',
+    SESSIONS_HISTORY: '/peoplefind/sessions/history',
   },
 } as const;
