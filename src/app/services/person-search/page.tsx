@@ -260,7 +260,7 @@ export default function PersonSearchPage() {
 
     const interval = setInterval(() => {
       fetchMedia(false);
-    }, 10000); // Poll every 10 seconds
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [media, fetchMedia]);
@@ -544,6 +544,19 @@ export default function PersonSearchPage() {
                           className="object-cover"
                           sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
                         />
+                      </div>
+                    ) : item.status === 'completed' ? (
+                      <div className="relative aspect-square overflow-hidden bg-[#1E3048]/50">
+                        <video
+                          src={`${BACKEND_URL}/${item.filepath}#t=0.1`}
+                          className="h-full w-full object-cover"
+                          preload="metadata"
+                          muted
+                          playsInline
+                        />
+                        <div className="absolute right-2 bottom-2 rounded bg-black/60 p-1 text-white/80 backdrop-blur-sm">
+                          <Video className="h-3.5 w-3.5" />
+                        </div>
                       </div>
                     ) : (
                       <div className="flex aspect-square items-center justify-center bg-[#1E3048]/50">
