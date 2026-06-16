@@ -7,6 +7,7 @@ import type {
   MediaSource,
   SearchSession,
   SearchMatch,
+  SessionHistoryItem,
 } from '@/types/peoplefind';
 
 // ── Media Library ──
@@ -94,7 +95,7 @@ export async function bulkDeleteMedia(): Promise<ApiResponse<null>> {
 
 // ── Search ──
 
-/** Search all indexed media by uploading a reference selfie */
+/** Search all indexed media by uploading a reference selfie image */
 export async function searchBySelfie(
   file: File,
   threshold = 0.45,
@@ -163,6 +164,26 @@ export async function getSessionMatches(
     if (error instanceof AxiosError) {
       throw new ApiError(
         error.response?.data?.message || 'Failed to fetch session results',
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}
+
+/** Get search session history for the current user / tenant */
+export async function getSessionHistory(): Promise<
+  ApiResponse<SessionHistoryItem[]>
+> {
+  try {
+    const response = await apiClient.get<ApiResponse<SessionHistoryItem[]>>(
+      API_ENDPOINTS.PEOPLEFIND.SESSIONS_HISTORY,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        error.response?.data?.message || 'Failed to fetch session history',
         error.response?.status,
       );
     }

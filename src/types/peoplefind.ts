@@ -28,3 +28,24 @@ export interface SearchSession {
   created_at: string;
   results: SearchMatch[];
 }
+
+/** User summary embedded in session history */
+export interface SessionUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: string;
+}
+
+/** A past search session as returned by GET /peoplefind/sessions/history */
+export interface SessionHistoryItem {
+  id: string;
+  selfie_path: string;
+  threshold: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  created_at: string;
+  user: SessionUser;
+  total_matches: number;
+  matched_images: string[];
+}

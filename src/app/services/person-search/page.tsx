@@ -14,6 +14,13 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  Play,
+  Film,
+  ScanFace,
+  TriangleAlert,
+  History,
+  ChevronRight,
+  UserCircle2,
 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
@@ -26,12 +33,14 @@ import {
   searchBySelfie,
   searchVideo,
   getSessionMatches,
+  getSessionHistory,
 } from '@/lib/api/peoplefind';
 import { ApiError } from '@/types/api';
 import type {
   MediaSource,
   SearchSession,
   SearchMatch,
+  SessionHistoryItem,
 } from '@/types/peoplefind';
 
 const BACKEND_URL =
@@ -70,6 +79,116 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+// ── Similarity colour helper ──
+function similarityColor(s: number) {
+  if (s >= 0.8) return 'bg-emerald-500/90 text-white';
+  if (s >= 0.6) return 'bg-amber-500/90 text-white';
+  return 'bg-slate-500/90 text-white';
+}
+
+function similarityBarColor(s: number) {
+  if (s >= 0.8) return 'bg-emerald-500';
+  if (s >= 0.6) return 'bg-amber-500';
+  return 'bg-slate-400';
+}
+
+function formatTimestamp(seconds: number | null): string {
+  if (seconds === null) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function formatTimestampLong(seconds: number | null): string {
+  if (seconds === null) return '—';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  if (h > 0)
+    return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  return `${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+// ── Delete Confirmation Modal ──
+function DeleteAllModal({
+  count,
+  onConfirm,
+  onCancel,
+}: {
+  count: number;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div
+        className="w-full max-w-md overflow-hidden rounded-2xl border border-red-500/20 bg-[#0D1628] shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Top accent bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-red-600 to-red-400" />
+
+        <div className="space-y-5 p-6">
+          {/* Icon + heading */}
+          <div className="flex items-start gap-4">
+            <div className="shrink-0 rounded-xl border border-red-500/20 bg-red-500/10 p-3">
+              <TriangleAlert className="h-6 w-6 text-red-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-[#E8EDF5]">
+                Delete All Media?
+              </h2>
+              <p className="mt-1 text-sm leading-relaxed text-[#5A7A9A]">
+                You are about to permanently delete{' '}
+                <span className="font-semibold text-[#E8EDF5]">
+                  {count} media file{count !== 1 ? 's' : ''}
+                </span>{' '}
+                and all associated face embeddings. This action{' '}
+                <span className="font-medium text-red-400">
+                  cannot be undone
+                </span>
+                .
+              </p>
+            </div>
+          </div>
+
+          {/* Warning detail */}
+          <div className="space-y-1 rounded-lg border border-red-500/15 bg-red-500/5 px-4 py-3 text-xs text-red-300/80">
+            <p className="flex items-center gap-1.5">
+              <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-red-400" />
+              All indexed photos and videos will be removed
+            </p>
+            <p className="flex items-center gap-1.5">
+              <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-red-400" />
+              All face recognition data and embeddings will be cleared
+            </p>
+            <p className="flex items-center gap-1.5">
+              <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-red-400" />
+              Physical files will be deleted from server storage
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={onCancel}
+              className="flex-1 rounded-xl border border-[#1E3048] bg-transparent px-4 py-2.5 text-sm font-medium text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-500 active:bg-red-700"
+            >
+              Delete All Media
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ──
 export default function PersonSearchPage() {
   const [tab, setTab] = useState<Tab>('library');
@@ -78,6 +197,7 @@ export default function PersonSearchPage() {
   const [media, setMedia] = useState<MediaSource[]>([]);
   const [mediaLoading, setMediaLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
 
   // Search state
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
@@ -91,12 +211,19 @@ export default function PersonSearchPage() {
   const [selectedVideo, setSelectedVideo] = useState<{
     url: string;
     timestamp: number | null;
+    filename: string;
   } | null>(null);
 
+  // Results view mode
+  const [resultView, setResultView] = useState<'timeline' | 'grid'>('timeline');
+
+  // Search history drawer
+  const [history, setHistory] = useState<SessionHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
   const fetchMedia = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setMediaLoading(true);
-    }
+    if (showLoading) setMediaLoading(true);
     try {
       const res = await listMedia();
       setMedia(res.data);
@@ -107,10 +234,28 @@ export default function PersonSearchPage() {
     }
   }, []);
 
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await getSessionHistory();
+      setHistory(res.data);
+    } catch {
+      // silently fail
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchMedia(false);
   }, [fetchMedia]);
+
+  // Fetch history once on mount
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchHistory();
+  }, [fetchHistory]);
 
   // ── Media upload handler ──
   async function handleUpload(files: File[], mediaType: 'photo' | 'video') {
@@ -141,11 +286,11 @@ export default function PersonSearchPage() {
   }
 
   async function handleBulkDelete() {
-    if (!confirm('Delete all media? This cannot be undone.')) return;
     try {
       await bulkDeleteMedia();
       toast.success('All media deleted');
       setMedia([]);
+      setShowDeleteAllModal(false);
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.message);
       else toast.error('Bulk delete failed');
@@ -182,7 +327,6 @@ export default function PersonSearchPage() {
       setSession(res.data);
       toast.success('Video search submitted — polling for results...');
       setTab('results');
-      // Poll for results
       pollSession(res.data.id);
     } catch (err) {
       if (err instanceof ApiError) toast.error(err.message);
@@ -197,7 +341,6 @@ export default function PersonSearchPage() {
       try {
         const res = await getSessionMatches(sessionId);
         setResults(res.data);
-        // If we got results, stop polling
         if (res.data.length > 0) {
           clearInterval(interval);
           toast.success(`Found ${res.data.length} match(es)`);
@@ -206,18 +349,38 @@ export default function PersonSearchPage() {
         clearInterval(interval);
       }
     }, 3000);
-    // Safety: stop after 2 minutes
     setTimeout(() => clearInterval(interval), 120_000);
   }
 
-  function formatTimestamp(seconds: number | null): string {
-    if (seconds === null) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  // ── Load a history session into Results tab ──
+  async function handleSelectHistory(item: SessionHistoryItem) {
+    setTab('results');
+    setResults([]);
+    setSession(null);
+    try {
+      const res = await getSessionMatches(item.id);
+      const minimal: SearchSession = {
+        id: item.id,
+        selfie_path: item.selfie_path,
+        threshold: item.threshold,
+        status: item.status,
+        created_at: item.created_at,
+        results: res.data,
+      };
+      setSession(minimal);
+      setResults(res.data);
+      toast.success(
+        res.data.length > 0
+          ? `Loaded ${res.data.length} match(es) from history`
+          : 'Session loaded — no matches recorded',
+      );
+    } catch (err) {
+      if (err instanceof ApiError) toast.error(err.message);
+      else toast.error('Failed to load session');
+    }
   }
 
-  function getMatchImageUrl(match: SearchMatch): string {
+  function getMatchFrameUrl(match: SearchMatch): string {
     if (match.media_source.media_type === 'photo') {
       return `${BACKEND_URL}/${match.media_source.filepath}`;
     }
@@ -229,20 +392,61 @@ export default function PersonSearchPage() {
       const hh = String(h).padStart(2, '0');
       const mm = String(m).padStart(2, '0');
       const ss = String(s).padStart(2, '0');
-      const timeFilename = `${hh}_${mm}_${ss}`;
-      return `${BACKEND_URL}/storage/video_matches/${match.session_id}/frame_${timeFilename}.jpg`;
+      return `${BACKEND_URL}/storage/video_matches/${match.session_id}/frame_${hh}_${mm}_${ss}.jpg`;
     }
     return `${BACKEND_URL}/${match.media_source.filepath}`;
   }
 
+  // Group results by video/media source for timeline view
+  const videoMatches = results.filter(
+    (r) => r.media_source.media_type === 'video',
+  );
+  const photoMatches = results.filter(
+    (r) => r.media_source.media_type === 'photo',
+  );
+
+  // Group video matches by media source id
+  const videoGroups = videoMatches.reduce<Record<string, SearchMatch[]>>(
+    (acc, m) => {
+      const key = m.media_source.id;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(m);
+      return acc;
+    },
+    {},
+  );
+
+  const sortedResults = [...results].sort(
+    (a, b) => b.similarity - a.similarity,
+  );
+
   return (
     <div className="max-w-6xl space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-[#E8EDF5]">Person Search</h1>
-        <p className="mt-1 text-sm text-[#5A7A9A]">
-          Find anyone across your media using face recognition.
-        </p>
+      {/* ── Page Header ── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-[#E8EDF5]">Person Search</h1>
+          <p className="mt-1 text-sm text-[#5A7A9A]">
+            Find anyone across your media using face recognition.
+          </p>
+        </div>
+
+        {/* History trigger */}
+        <button
+          onClick={() => {
+            setHistoryOpen(true);
+            fetchHistory();
+          }}
+          className="relative flex shrink-0 items-center gap-2 rounded-lg border border-[#1E3048] bg-[#0D1628] px-3 py-2 text-xs font-medium text-[#5A7A9A] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+        >
+          <History className="h-4 w-4" />
+          <span className="hidden sm:inline">History</span>
+          {history.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#1565C0] text-[9px] font-bold text-white">
+              {history.length > 99 ? '99+' : history.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tabs */}
@@ -290,9 +494,9 @@ export default function PersonSearchPage() {
                 </button>
                 {media.length > 0 && (
                   <button
-                    onClick={handleBulkDelete}
+                    onClick={() => setShowDeleteAllModal(true)}
                     className="rounded-md p-1.5 text-red-400/60 transition-colors hover:bg-red-400/10 hover:text-red-400"
-                    title="Delete all"
+                    title="Delete all media"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -359,105 +563,108 @@ export default function PersonSearchPage() {
 
       {/* ════════ Tab: Search ════════ */}
       {tab === 'search' && (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Selfie upload */}
-          <div className="space-y-5 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-            <h2 className="text-sm font-semibold text-[#E8EDF5]">
-              Reference Selfie
-            </h2>
-            <p className="text-xs text-[#5A7A9A]">
-              Upload a clear photo of the person you want to find.
-            </p>
+        <div className="space-y-6">
+          {/* Top row: selfie + video */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Selfie upload */}
+            <div className="space-y-5 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+              <h2 className="text-sm font-semibold text-[#E8EDF5]">
+                Reference Selfie
+              </h2>
+              <p className="text-xs text-[#5A7A9A]">
+                Upload a clear photo of the person you want to find.
+              </p>
 
-            <SelfieUpload file={selfieFile} onChange={setSelfieFile} />
+              <SelfieUpload file={selfieFile} onChange={setSelfieFile} />
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-[#5A7A9A]">
-                  Similarity threshold
-                </label>
-                <span className="text-xs font-semibold text-[#E8EDF5]">
-                  {threshold}%
-                </span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium text-[#5A7A9A]">
+                    Similarity threshold
+                  </label>
+                  <span className="text-xs font-semibold text-[#E8EDF5]">
+                    {threshold}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={10}
+                  max={95}
+                  step={5}
+                  value={threshold}
+                  onChange={(e) => setThreshold(Number(e.target.value))}
+                  className="w-full accent-[#1565C0]"
+                />
               </div>
-              <input
-                type="range"
-                min={10}
-                max={95}
-                step={5}
-                value={threshold}
-                onChange={(e) => setThreshold(Number(e.target.value))}
-                className="w-full accent-[#1565C0]"
-              />
+
+              <button
+                onClick={handleSearch}
+                disabled={!selfieFile || searching}
+                className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#1565C0] text-sm font-medium text-white transition-colors hover:bg-[#1565C0]/90 disabled:opacity-40"
+              >
+                {searching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Search className="h-4 w-4" /> Search All Media
+                  </>
+                )}
+              </button>
             </div>
 
-            <button
-              onClick={handleSearch}
-              disabled={!selfieFile || searching}
-              className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#1565C0] text-sm font-medium text-white transition-colors hover:bg-[#1565C0]/90 disabled:opacity-40"
-            >
-              {searching ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+            {/* Video-specific search */}
+            <div className="space-y-5 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+              <h2 className="text-sm font-semibold text-[#E8EDF5]">
+                Search Specific Video
+              </h2>
+              <p className="text-xs text-[#5A7A9A]">
+                Select a video from your library to search within. Runs as a
+                background job.
+              </p>
+
+              {media.filter((m) => m.media_type === 'video').length === 0 ? (
+                <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-[#1E3048]">
+                  <p className="text-xs text-[#5A7A9A]">
+                    No videos in your library
+                  </p>
+                </div>
               ) : (
-                <>
-                  <Search className="h-4 w-4" /> Search All Media
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Video-specific search */}
-          <div className="space-y-5 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-            <h2 className="text-sm font-semibold text-[#E8EDF5]">
-              Search Specific Video
-            </h2>
-            <p className="text-xs text-[#5A7A9A]">
-              Select a video from your library to search within. Runs as a
-              background job.
-            </p>
-
-            {media.filter((m) => m.media_type === 'video').length === 0 ? (
-              <div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-[#1E3048]">
-                <p className="text-xs text-[#5A7A9A]">
-                  No videos in your library
-                </p>
-              </div>
-            ) : (
-              <div className="max-h-64 space-y-2 overflow-y-auto">
-                {media
-                  .filter((m) => m.media_type === 'video')
-                  .map((v) => (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between rounded-lg border border-[#1E3048] px-3 py-2"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Video className="h-4 w-4 text-[#5A7A9A]" />
-                        <span className="truncate text-sm text-[#E8EDF5]">
-                          {v.filename}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => handleVideoSearch(v.id)}
-                        disabled={!selfieFile || searching}
-                        className="shrink-0 rounded-md bg-[#1E3048] px-3 py-1 text-xs font-medium text-[#E8EDF5] transition-colors hover:bg-[#1565C0] disabled:opacity-40"
+                <div className="max-h-64 space-y-2 overflow-y-auto">
+                  {media
+                    .filter((m) => m.media_type === 'video')
+                    .map((v) => (
+                      <div
+                        key={v.id}
+                        className="flex items-center justify-between rounded-lg border border-[#1E3048] px-3 py-2"
                       >
-                        Search
-                      </button>
-                    </div>
-                  ))}
-              </div>
-            )}
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Video className="h-4 w-4 shrink-0 text-[#5A7A9A]" />
+                          <span className="truncate text-sm text-[#E8EDF5]">
+                            {v.filename}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleVideoSearch(v.id)}
+                          disabled={!selfieFile || searching}
+                          className="shrink-0 rounded-md bg-[#1E3048] px-3 py-1 text-xs font-medium text-[#E8EDF5] transition-colors hover:bg-[#1565C0] disabled:opacity-40"
+                        >
+                          Search
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* ════════ Tab: Results ════════ */}
       {tab === 'results' && (
-        <div className="space-y-4">
-          {/* Session info */}
+        <div className="space-y-5">
+          {/* Session info banner */}
           {session && (
-            <div className="flex items-center gap-4 rounded-xl border border-[#1E3048] bg-[#0D1628] px-5 py-3">
+            <div className="flex flex-wrap items-center gap-4 rounded-xl border border-[#1E3048] bg-[#0D1628] px-5 py-4">
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border-2 border-[#1565C0]">
                 <Image
                   src={`${BACKEND_URL}/${session.selfie_path}`}
@@ -466,154 +673,518 @@ export default function PersonSearchPage() {
                   className="object-cover"
                 />
               </div>
-              <div>
-                <p className="text-sm font-medium text-[#E8EDF5]">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-[#E8EDF5]">
                   Search Session
                 </p>
-                <p className="text-xs text-[#5A7A9A]">
-                  Threshold: {Math.round(session.threshold * 100)}% · Status:{' '}
-                  <StatusBadge status={session.status} />
+                <p className="mt-0.5 text-xs text-[#5A7A9A]">
+                  Threshold: {Math.round(session.threshold * 100)}%
+                  &nbsp;·&nbsp; <StatusBadge status={session.status} />
                 </p>
               </div>
-              <div className="ml-auto text-right">
-                <p className="text-lg font-bold text-[#E8EDF5]">
-                  {results.length}
-                </p>
-                <p className="text-xs text-[#5A7A9A]">
-                  match{results.length !== 1 ? 'es' : ''}
-                </p>
+
+              {/* Summary chips */}
+              <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-1.5 rounded-lg bg-[#1E3048] px-3 py-1.5">
+                  <ScanFace className="h-3.5 w-3.5 text-[#60A5FA]" />
+                  <span className="text-xs font-semibold text-[#E8EDF5]">
+                    {results.length}
+                  </span>
+                  <span className="text-xs text-[#5A7A9A]">
+                    match{results.length !== 1 ? 'es' : ''}
+                  </span>
+                </div>
+                {videoMatches.length > 0 && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-[#1E3048] px-3 py-1.5">
+                    <Film className="h-3.5 w-3.5 text-purple-400" />
+                    <span className="text-xs font-semibold text-[#E8EDF5]">
+                      {videoMatches.length}
+                    </span>
+                    <span className="text-xs text-[#5A7A9A]">in video</span>
+                  </div>
+                )}
+                {photoMatches.length > 0 && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-[#1E3048] px-3 py-1.5">
+                    <ImageIcon className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="text-xs font-semibold text-[#E8EDF5]">
+                      {photoMatches.length}
+                    </span>
+                    <span className="text-xs text-[#5A7A9A]">in photo</span>
+                  </div>
+                )}
               </div>
+
+              {/* View toggle */}
+              {results.length > 0 && (
+                <div className="flex overflow-hidden rounded-md border border-[#1E3048]">
+                  {(['timeline', 'grid'] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setResultView(v)}
+                      className={cn(
+                        'px-3 py-1.5 text-xs font-medium capitalize transition-colors',
+                        resultView === v
+                          ? 'bg-[#1565C0] text-white'
+                          : 'text-[#5A7A9A] hover:text-[#E8EDF5]',
+                      )}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Results grid */}
-          {results.length === 0 ? (
+          {/* Empty state */}
+          {results.length === 0 && (
             <div className="flex h-64 items-center justify-center rounded-xl border border-[#1E3048] bg-[#0D1628]">
               <div className="text-center">
                 <Search className="mx-auto h-8 w-8 text-[#5A7A9A]" />
                 <p className="mt-2 text-sm text-[#5A7A9A]">
                   {session
-                    ? 'No matches found. Try lowering the threshold.'
+                    ? session.status === 'pending' ||
+                      session.status === 'processing'
+                      ? 'Analysing video — results will appear shortly…'
+                      : 'No matches found. Try lowering the threshold.'
                     : 'Run a search to see results here.'}
                 </p>
+                {session &&
+                  (session.status === 'pending' ||
+                    session.status === 'processing') && (
+                    <Loader2 className="mx-auto mt-3 h-5 w-5 animate-spin text-[#5A7A9A]" />
+                  )}
               </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {results
-                .sort((a, b) => b.similarity - a.similarity)
-                .map((match) => (
+          )}
+
+          {/* ── Timeline view ── */}
+          {results.length > 0 && resultView === 'timeline' && (
+            <div className="space-y-6">
+              {/* Video timeline groups */}
+              {Object.entries(videoGroups).map(([mediaId, matches]) => {
+                const sorted = [...matches].sort(
+                  (a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0),
+                );
+                const source = sorted[0].media_source;
+                const bestSim = Math.max(...sorted.map((m) => m.similarity));
+
+                return (
                   <div
-                    key={match.id}
-                    className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628] transition-colors hover:border-[#1565C0]/40"
+                    key={mediaId}
+                    className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]"
                   >
-                    {/* Source image / Video keyframe match */}
-                    <div
-                      className={cn(
-                        'relative aspect-video bg-[#1E3048]/50',
-                        match.media_source.media_type === 'video' &&
-                          'group/item cursor-pointer',
-                      )}
-                      onClick={() => {
-                        if (match.media_source.media_type === 'video') {
-                          setSelectedVideo({
-                            url: `${BACKEND_URL}/${match.media_source.filepath}`,
-                            timestamp: match.timestamp,
-                          });
-                        }
-                      }}
-                    >
-                      {match.media_source.media_type === 'video' &&
-                      imageErrors[match.id] ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-2">
-                          <Video className="h-10 w-10 text-[#5A7A9A] transition-colors group-hover/item:text-[#60A5FA]" />
-                          <span className="text-[10px] text-[#5A7A9A]">
-                            Click to play video
-                          </span>
+                    {/* Video header */}
+                    <div className="flex items-center justify-between border-b border-[#1E3048] bg-[#0A0F1E]/60 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-500/20 bg-purple-500/10">
+                          <Film className="h-4 w-4 text-purple-400" />
                         </div>
-                      ) : (
-                        <div className="relative h-full w-full">
-                          <Image
-                            src={getMatchImageUrl(match)}
-                            alt={match.media_source.filename}
-                            fill
-                            className="object-cover"
-                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                            onError={() => {
-                              setImageErrors((prev) => ({
-                                ...prev,
-                                [match.id]: true,
-                              }));
-                            }}
-                          />
-                          {match.media_source.media_type === 'video' && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover/item:opacity-100">
-                              <span className="rounded-md bg-black/60 px-2.5 py-1 text-xs font-medium text-white">
-                                Play video
-                              </span>
-                            </div>
+                        <div>
+                          <p className="max-w-xs truncate text-sm font-semibold text-[#E8EDF5]">
+                            {source.filename}
+                          </p>
+                          <p className="text-[11px] text-[#5A7A9A]">
+                            {sorted.length} appearance
+                            {sorted.length !== 1 ? 's' : ''} detected
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'rounded-full px-2.5 py-1 text-xs font-bold',
+                            similarityColor(bestSim),
                           )}
-                        </div>
-                      )}
-                      {/* Similarity badge */}
-                      <div
-                        className={cn(
-                          'absolute top-2 right-2 z-10 rounded-full px-2.5 py-1 text-xs font-bold',
-                          match.similarity >= 0.8
-                            ? 'bg-emerald-500/90 text-white'
-                            : match.similarity >= 0.6
-                              ? 'bg-[#F59E0B]/90 text-white'
-                              : 'bg-[#5A7A9A]/90 text-white',
-                        )}
-                      >
-                        {Math.round(match.similarity * 100)}%
+                        >
+                          Best {Math.round(bestSim * 100)}%
+                        </span>
                       </div>
                     </div>
 
-                    {/* Match details */}
-                    <div className="space-y-1.5 p-3">
-                      <p className="truncate text-sm font-medium text-[#E8EDF5]">
-                        {match.media_source.filename}
+                    {/* Horizontal scrubber timeline */}
+                    <div className="relative px-4 py-4">
+                      <p className="mb-3 text-[10px] font-medium tracking-wider text-[#5A7A9A] uppercase">
+                        Timeline — click a marker to view
                       </p>
-                      <div className="flex items-center gap-3 text-xs text-[#5A7A9A]">
-                        <span className="flex items-center gap-1">
-                          {match.media_source.media_type === 'photo' ? (
-                            <ImageIcon className="h-3 w-3" />
-                          ) : (
-                            <Video className="h-3 w-3" />
-                          )}
-                          {match.media_source.media_type}
-                        </span>
-                        {match.timestamp !== null && (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {formatTimestamp(match.timestamp)}
-                          </span>
-                        )}
+
+                      {/* Ruler bar */}
+                      <div className="relative h-2 rounded-full bg-[#1E3048]">
+                        {sorted.map((match) => {
+                          const maxTs =
+                            Math.max(...sorted.map((m) => m.timestamp ?? 0)) ||
+                            1;
+                          const pct = ((match.timestamp ?? 0) / maxTs) * 100;
+                          return (
+                            <button
+                              key={match.id}
+                              title={`${formatTimestamp(match.timestamp)} — ${Math.round(match.similarity * 100)}%`}
+                              onClick={() =>
+                                setSelectedVideo({
+                                  url: `${BACKEND_URL}/${source.filepath}`,
+                                  timestamp: match.timestamp,
+                                  filename: source.filename,
+                                })
+                              }
+                              style={{
+                                left: `${Math.min(Math.max(pct, 1), 98)}%`,
+                              }}
+                              className={cn(
+                                'absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#0D1628] transition-transform hover:scale-125',
+                                similarityBarColor(match.similarity),
+                              )}
+                            />
+                          );
+                        })}
                       </div>
-                      {match.bbox && (
-                        <p className="text-[10px] text-[#5A7A9A]/60">
-                          bbox: [{match.bbox.join(', ')}]
-                        </p>
-                      )}
+
+                      {/* Time labels */}
+                      <div className="mt-1 flex justify-between text-[9px] text-[#5A7A9A]/60">
+                        <span>0:00</span>
+                        {sorted.length > 0 &&
+                          sorted[sorted.length - 1].timestamp !== null && (
+                            <span>
+                              {formatTimestamp(
+                                sorted[sorted.length - 1].timestamp,
+                              )}
+                              +
+                            </span>
+                          )}
+                      </div>
+                    </div>
+
+                    {/* Sighting cards scroll row */}
+                    <div className="scrollbar-thin flex gap-3 overflow-x-auto px-4 pt-1 pb-4">
+                      {sorted.map((match, idx) => (
+                        <button
+                          key={match.id}
+                          onClick={() =>
+                            setSelectedVideo({
+                              url: `${BACKEND_URL}/${source.filepath}`,
+                              timestamp: match.timestamp,
+                              filename: source.filename,
+                            })
+                          }
+                          className="group/card w-40 shrink-0 overflow-hidden rounded-xl border border-[#1E3048] bg-[#0A0F1E] text-left transition-all hover:border-[#1565C0]/50 hover:shadow-lg hover:shadow-[#1565C0]/10"
+                        >
+                          {/* Frame thumbnail */}
+                          <div className="relative h-24 w-full bg-[#1E3048]/50">
+                            {!imageErrors[match.id] ? (
+                              <Image
+                                src={getMatchFrameUrl(match)}
+                                alt={`Frame at ${formatTimestamp(match.timestamp)}`}
+                                fill
+                                className="object-cover"
+                                sizes="160px"
+                                onError={() =>
+                                  setImageErrors((p) => ({
+                                    ...p,
+                                    [match.id]: true,
+                                  }))
+                                }
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center">
+                                <Video className="h-6 w-6 text-[#5A7A9A]" />
+                              </div>
+                            )}
+                            {/* Play overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover/card:opacity-100">
+                              <div className="rounded-full bg-white/20 p-2 backdrop-blur-sm">
+                                <Play className="h-4 w-4 fill-white text-white" />
+                              </div>
+                            </div>
+                            {/* Similarity badge */}
+                            <span
+                              className={cn(
+                                'absolute top-1.5 right-1.5 z-10 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                                similarityColor(match.similarity),
+                              )}
+                            >
+                              {Math.round(match.similarity * 100)}%
+                            </span>
+                            {/* Sighting index */}
+                            <span className="absolute top-1.5 left-1.5 z-10 rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-medium text-white/80">
+                              #{idx + 1}
+                            </span>
+                          </div>
+                          {/* Card body */}
+                          <div className="space-y-1 px-2.5 py-2">
+                            <div className="flex items-center gap-1 text-[#60A5FA]">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              <span className="text-xs font-semibold">
+                                {formatTimestamp(match.timestamp)}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-[#5A7A9A]">
+                              {formatTimestampLong(match.timestamp)}
+                            </p>
+                            {/* Similarity bar */}
+                            <div className="mt-1 h-1 w-full rounded-full bg-[#1E3048]">
+                              <div
+                                className={cn(
+                                  'h-full rounded-full transition-all',
+                                  similarityBarColor(match.similarity),
+                                )}
+                                style={{
+                                  width: `${Math.round(match.similarity * 100)}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                ))}
+                );
+              })}
+
+              {/* Photo matches section */}
+              {photoMatches.length > 0 && (
+                <div className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                  <div className="flex items-center gap-3 border-b border-[#1E3048] bg-[#0A0F1E]/60 px-4 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/20 bg-emerald-500/10">
+                      <ImageIcon className="h-4 w-4 text-emerald-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#E8EDF5]">
+                        Photo Matches
+                      </p>
+                      <p className="text-[11px] text-[#5A7A9A]">
+                        {photoMatches.length} photo
+                        {photoMatches.length !== 1 ? 's' : ''} found
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4">
+                    {[...photoMatches]
+                      .sort((a, b) => b.similarity - a.similarity)
+                      .map((match) => (
+                        <div
+                          key={match.id}
+                          className="group/photo overflow-hidden rounded-xl border border-[#1E3048] bg-[#0A0F1E]"
+                        >
+                          <div className="relative aspect-square">
+                            <Image
+                              src={getMatchFrameUrl(match)}
+                              alt={match.media_source.filename}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width:640px) 50vw, 25vw"
+                              onError={() =>
+                                setImageErrors((p) => ({
+                                  ...p,
+                                  [match.id]: true,
+                                }))
+                              }
+                            />
+                            <span
+                              className={cn(
+                                'absolute top-1.5 right-1.5 z-10 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                                similarityColor(match.similarity),
+                              )}
+                            >
+                              {Math.round(match.similarity * 100)}%
+                            </span>
+                          </div>
+                          <div className="px-2.5 py-2">
+                            <p className="truncate text-[11px] text-[#E8EDF5]">
+                              {match.media_source.filename}
+                            </p>
+                            <div className="mt-1.5 h-1 w-full rounded-full bg-[#1E3048]">
+                              <div
+                                className={cn(
+                                  'h-full rounded-full',
+                                  similarityBarColor(match.similarity),
+                                )}
+                                style={{
+                                  width: `${Math.round(match.similarity * 100)}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Grid view ── */}
+          {results.length > 0 && resultView === 'grid' && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {sortedResults.map((match) => (
+                <div
+                  key={match.id}
+                  className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628] transition-colors hover:border-[#1565C0]/40"
+                >
+                  {/* Thumbnail */}
+                  <div
+                    className={cn(
+                      'relative aspect-video bg-[#1E3048]/50',
+                      match.media_source.media_type === 'video' &&
+                        'group/item cursor-pointer',
+                    )}
+                    onClick={() => {
+                      if (match.media_source.media_type === 'video') {
+                        setSelectedVideo({
+                          url: `${BACKEND_URL}/${match.media_source.filepath}`,
+                          timestamp: match.timestamp,
+                          filename: match.media_source.filename,
+                        });
+                      }
+                    }}
+                  >
+                    {match.media_source.media_type === 'video' &&
+                    imageErrors[match.id] ? (
+                      <div className="flex h-full flex-col items-center justify-center gap-2">
+                        <Video className="h-10 w-10 text-[#5A7A9A] transition-colors group-hover/item:text-[#60A5FA]" />
+                        <span className="text-[10px] text-[#5A7A9A]">
+                          Click to play video
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="relative h-full w-full">
+                        <Image
+                          src={getMatchFrameUrl(match)}
+                          alt={match.media_source.filename}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          onError={() =>
+                            setImageErrors((prev) => ({
+                              ...prev,
+                              [match.id]: true,
+                            }))
+                          }
+                        />
+                        {match.media_source.media_type === 'video' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover/item:opacity-100">
+                            <div className="rounded-full bg-white/20 p-3 backdrop-blur-sm">
+                              <Play className="h-5 w-5 fill-white text-white" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* Similarity badge */}
+                    <div
+                      className={cn(
+                        'absolute top-2 right-2 z-10 rounded-full px-2.5 py-1 text-xs font-bold',
+                        similarityColor(match.similarity),
+                      )}
+                    >
+                      {Math.round(match.similarity * 100)}%
+                    </div>
+                    {/* Media type tag */}
+                    <div className="absolute bottom-2 left-2 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] text-white/80 backdrop-blur-sm">
+                      {match.media_source.media_type === 'video' ? (
+                        <Video className="h-3 w-3" />
+                      ) : (
+                        <ImageIcon className="h-3 w-3" />
+                      )}
+                      {match.media_source.media_type}
+                    </div>
+                  </div>
+
+                  {/* Match details */}
+                  <div className="space-y-2 p-3">
+                    <p className="truncate text-sm font-medium text-[#E8EDF5]">
+                      {match.media_source.filename}
+                    </p>
+
+                    {/* Similarity bar */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px] text-[#5A7A9A]">
+                        <span>Similarity</span>
+                        <span className="font-semibold text-[#E8EDF5]">
+                          {Math.round(match.similarity * 100)}%
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-[#1E3048]">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            similarityBarColor(match.similarity),
+                          )}
+                          style={{
+                            width: `${Math.round(match.similarity * 100)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Timestamp */}
+                    {match.timestamp !== null && (
+                      <div className="flex items-center gap-1.5 rounded-lg bg-[#1E3048] px-2.5 py-1.5">
+                        <Clock className="h-3 w-3 shrink-0 text-[#60A5FA]" />
+                        <span className="text-xs font-semibold text-[#60A5FA]">
+                          {formatTimestamp(match.timestamp)}
+                        </span>
+                        <span className="text-[10px] text-[#5A7A9A]">
+                          · {formatTimestampLong(match.timestamp)} into video
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Video play button */}
+                    {match.media_source.media_type === 'video' && (
+                      <button
+                        onClick={() =>
+                          setSelectedVideo({
+                            url: `${BACKEND_URL}/${match.media_source.filepath}`,
+                            timestamp: match.timestamp,
+                            filename: match.media_source.filename,
+                          })
+                        }
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#1565C0]/30 bg-[#1565C0]/10 py-1.5 text-xs font-medium text-[#60A5FA] transition-colors hover:bg-[#1565C0]/20"
+                      >
+                        <Play className="h-3 w-3 fill-current" />
+                        Play from {formatTimestamp(match.timestamp)}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Video Modal */}
+      {/* ════════ Video Playback Modal ════════ */}
       {selectedVideo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-          <div className="relative w-full max-w-3xl rounded-xl border border-[#1E3048] bg-[#0D1628] p-4 shadow-2xl">
-            <button
-              onClick={() => setSelectedVideo(null)}
-              className="absolute -top-10 right-0 flex items-center gap-1 text-sm text-[#5A7A9A] hover:text-[#E8EDF5]"
-            >
-              <X className="h-4 w-4" /> Close
-            </button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedVideo(null)}
+        >
+          <div
+            className="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-[#1E3048] bg-[#0D1628] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between border-b border-[#1E3048] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Film className="h-4 w-4 text-purple-400" />
+                <span className="max-w-xs truncate text-sm font-medium text-[#E8EDF5]">
+                  {selectedVideo.filename}
+                </span>
+                {selectedVideo.timestamp !== null && (
+                  <span className="flex items-center gap-1 rounded-full bg-[#1565C0]/20 px-2 py-0.5 text-[10px] font-semibold text-[#60A5FA]">
+                    <Clock className="h-3 w-3" />
+                    {formatTimestamp(selectedVideo.timestamp)}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setSelectedVideo(null)}
+                className="rounded-lg p-1.5 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Video */}
             <video
               src={
                 selectedVideo.timestamp !== null
@@ -622,16 +1193,42 @@ export default function PersonSearchPage() {
               }
               controls
               autoPlay
-              className="w-full rounded-lg"
+              className="w-full bg-black"
             />
+
             {selectedVideo.timestamp !== null && (
-              <p className="mt-2 text-center text-xs text-[#5A7A9A]">
-                Playing from matched time:{' '}
-                {formatTimestamp(selectedVideo.timestamp)}
-              </p>
+              <div className="flex items-center justify-center gap-2 border-t border-[#1E3048] px-4 py-2.5 text-xs text-[#5A7A9A]">
+                <Clock className="h-3.5 w-3.5 text-[#60A5FA]" />
+                Jumped to matched timestamp:{' '}
+                <span className="font-semibold text-[#60A5FA]">
+                  {formatTimestampLong(selectedVideo.timestamp)}
+                </span>
+              </div>
             )}
           </div>
         </div>
+      )}
+
+      {/* ════════ History Drawer ════════ */}
+      <HistoryDrawer
+        open={historyOpen}
+        history={history}
+        loading={historyLoading}
+        onClose={() => setHistoryOpen(false)}
+        onRefresh={fetchHistory}
+        onSelectSession={(item) => {
+          setHistoryOpen(false);
+          handleSelectHistory(item);
+        }}
+      />
+
+      {/* ════════ Delete All Confirmation Modal ════════ */}
+      {showDeleteAllModal && (
+        <DeleteAllModal
+          count={media.length}
+          onConfirm={handleBulkDelete}
+          onCancel={() => setShowDeleteAllModal(false)}
+        />
       )}
     </div>
   );
@@ -791,5 +1388,233 @@ function SelfieUpload({
         Drop a clear selfie here or click to browse
       </p>
     </div>
+  );
+}
+
+// ── History Drawer ────────────────────────────────────────────────────────────
+
+/** Derive photo vs. video counts from matched_images paths (by extension) */
+function splitMatchCounts(matchedImages: string[], totalMatches: number) {
+  const videoExts = ['.mp4', '.mov', '.avi', '.mkv', '.webm'];
+  const videoCount = matchedImages.filter((p) =>
+    videoExts.some((ext) => p.toLowerCase().endsWith(ext)),
+  ).length;
+  const photoCount = matchedImages.length - videoCount;
+  // If matched_images is empty but total_matches > 0, show total only
+  if (matchedImages.length === 0 && totalMatches > 0) {
+    return { photoCount: 0, videoCount: 0, totalOnly: true };
+  }
+  return { photoCount, videoCount, totalOnly: false };
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function HistoryDrawer({
+  open,
+  history,
+  loading,
+  onClose,
+  onRefresh,
+  onSelectSession,
+}: {
+  open: boolean;
+  history: SessionHistoryItem[];
+  loading: boolean;
+  onClose: () => void;
+  onRefresh: () => void;
+  onSelectSession: (item: SessionHistoryItem) => void;
+}) {
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300',
+          open
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0',
+        )}
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <div
+        className={cn(
+          'fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-[#1E3048] bg-[#0A0F1E] shadow-2xl transition-transform duration-300 ease-in-out',
+          open ? 'translate-x-0' : 'translate-x-full',
+        )}
+      >
+        {/* Drawer header */}
+        <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1565C0]/20 bg-[#1565C0]/10">
+              <History className="h-4 w-4 text-[#60A5FA]" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#E8EDF5]">
+                Search History
+              </p>
+              <p className="text-[10px] text-[#5A7A9A]">
+                {history.length} session{history.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="rounded-lg p-2 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5] disabled:opacity-40"
+              title="Refresh"
+            >
+              <RotateCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-2 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Drawer body */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-[#5A7A9A]" />
+            </div>
+          ) : history.length === 0 ? (
+            <div className="flex h-40 flex-col items-center justify-center gap-3 px-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#1E3048] bg-[#0D1628]">
+                <History className="h-6 w-6 text-[#5A7A9A]/40" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#E8EDF5]">
+                  No searches yet
+                </p>
+                <p className="mt-0.5 text-xs text-[#5A7A9A]">
+                  Your past searches will appear here.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#1E3048]">
+              {history.map((item) => {
+                const { photoCount, videoCount, totalOnly } = splitMatchCounts(
+                  item.matched_images,
+                  item.total_matches,
+                );
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => onSelectSession(item)}
+                    className="group flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[#1E3048]/50"
+                  >
+                    {/* Selfie avatar */}
+                    <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border-2 border-[#1E3048] bg-[#0D1628] transition-colors group-hover:border-[#1565C0]/50">
+                      {item.selfie_path ? (
+                        <Image
+                          src={`${BACKEND_URL}/${item.selfie_path}`}
+                          alt="Reference selfie"
+                          fill
+                          className="object-cover"
+                          sizes="44px"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <UserCircle2 className="h-6 w-6 text-[#5A7A9A]" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      {/* Name + status */}
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-xs font-semibold text-[#E8EDF5]">
+                          {item.user?.first_name
+                            ? `${item.user.first_name} ${item.user.last_name}`
+                            : 'Search Session'}
+                        </p>
+                        <StatusBadge status={item.status} />
+                      </div>
+
+                      {/* Date + threshold */}
+                      <p className="text-[10px] text-[#5A7A9A]">
+                        {formatDate(item.created_at)}
+                        &nbsp;·&nbsp;threshold{' '}
+                        {Math.round(item.threshold * 100)}%
+                      </p>
+
+                      {/* Match count chips */}
+                      <div className="flex items-center gap-1.5">
+                        {totalOnly ? (
+                          <span className="flex items-center gap-1 rounded-md bg-[#1565C0]/10 px-2 py-0.5">
+                            <ScanFace className="h-3 w-3 text-[#60A5FA]" />
+                            <span className="text-[10px] font-semibold text-[#60A5FA]">
+                              {item.total_matches} match
+                              {item.total_matches !== 1 ? 'es' : ''}
+                            </span>
+                          </span>
+                        ) : (
+                          <>
+                            {photoCount > 0 && (
+                              <span className="flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5">
+                                <ImageIcon className="h-3 w-3 text-emerald-400" />
+                                <span className="text-[10px] font-semibold text-emerald-400">
+                                  {photoCount}
+                                </span>
+                              </span>
+                            )}
+                            {videoCount > 0 && (
+                              <span className="flex items-center gap-1 rounded-md bg-purple-500/10 px-2 py-0.5">
+                                <Film className="h-3 w-3 text-purple-400" />
+                                <span className="text-[10px] font-semibold text-purple-400">
+                                  {videoCount}
+                                </span>
+                              </span>
+                            )}
+                            {photoCount === 0 &&
+                              videoCount === 0 &&
+                              item.total_matches > 0 && (
+                                <span className="flex items-center gap-1 rounded-md bg-[#1565C0]/10 px-2 py-0.5">
+                                  <ScanFace className="h-3 w-3 text-[#60A5FA]" />
+                                  <span className="text-[10px] font-semibold text-[#60A5FA]">
+                                    {item.total_matches}
+                                  </span>
+                                </span>
+                              )}
+                            {item.total_matches === 0 && (
+                              <span className="text-[10px] text-[#5A7A9A]/60">
+                                No matches
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Arrow */}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[#5A7A9A]/40 transition-all group-hover:translate-x-0.5 group-hover:text-[#60A5FA]" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Drawer footer hint */}
+        <div className="border-t border-[#1E3048] px-5 py-3">
+          <p className="text-center text-[10px] text-[#5A7A9A]">
+            Click any session to load its results
+          </p>
+        </div>
+      </div>
+    </>
   );
 }
