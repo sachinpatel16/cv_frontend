@@ -20,6 +20,8 @@ import {
   TriangleAlert,
   History,
   ChevronRight,
+  ChevronLeft,
+  Download,
   UserCircle2,
 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
@@ -198,6 +200,9 @@ export default function PersonSearchPage() {
   const [mediaLoading, setMediaLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  const previewableMedia = media.filter((m) => m.status === 'completed');
 
   // Search state
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
@@ -535,34 +540,54 @@ export default function PersonSearchPage() {
                     key={item.id}
                     className="group relative overflow-hidden rounded-lg border border-[#1E3048] bg-[#0A0F1E]"
                   >
-                    {item.media_type === 'photo' ? (
-                      <div className="relative aspect-square">
-                        <Image
-                          src={`${BACKEND_URL}/${item.filepath}`}
-                          alt={item.filename}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
-                        />
-                      </div>
-                    ) : item.status === 'completed' ? (
-                      <div className="relative aspect-square overflow-hidden bg-[#1E3048]/50">
-                        <video
-                          src={`${BACKEND_URL}/${item.filepath}#t=0.1`}
-                          className="h-full w-full object-cover"
-                          preload="metadata"
-                          muted
-                          playsInline
-                        />
-                        <div className="absolute right-2 bottom-2 rounded bg-black/60 p-1 text-white/80 backdrop-blur-sm">
-                          <Video className="h-3.5 w-3.5" />
+                    {(() => {
+                      const isCompleted = item.status === 'completed';
+                      const previewIdx = previewableMedia.findIndex(
+                        (m) => m.id === item.id,
+                      );
+                      return (
+                        <div
+                          onClick={() => {
+                            if (isCompleted && previewIdx !== -1) {
+                              setPreviewIndex(previewIdx);
+                            }
+                          }}
+                          className={cn(
+                            'relative aspect-square overflow-hidden bg-[#1E3048]/20 transition-all duration-355',
+                            isCompleted
+                              ? 'cursor-pointer hover:opacity-90 active:scale-95'
+                              : 'cursor-default',
+                          )}
+                        >
+                          {item.media_type === 'photo' ? (
+                            <Image
+                              src={`${BACKEND_URL}/${item.filepath}`}
+                              alt={item.filename}
+                              fill
+                              className="object-cover transition-transform duration-500 hover:scale-105"
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
+                            />
+                          ) : isCompleted ? (
+                            <div className="relative h-full w-full">
+                              <video
+                                src={`${BACKEND_URL}/${item.filepath}#t=0.1`}
+                                className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                                preload="metadata"
+                                muted
+                                playsInline
+                              />
+                              <div className="absolute right-2 bottom-2 rounded bg-black/60 p-1 text-white/80 backdrop-blur-sm">
+                                <Video className="h-3.5 w-3.5" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center bg-[#1E3048]/50">
+                              <Video className="h-8 w-8 text-[#5A7A9A]" />
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ) : (
-                      <div className="flex aspect-square items-center justify-center bg-[#1E3048]/50">
-                        <Video className="h-8 w-8 text-[#5A7A9A]" />
-                      </div>
-                    )}
+                      );
+                    })()}
                     <div className="space-y-1 p-2">
                       <p
                         className="truncate text-xs text-[#E8EDF5]"
@@ -1257,6 +1282,16 @@ export default function PersonSearchPage() {
           onCancel={() => setShowDeleteAllModal(false)}
         />
       )}
+
+      {/* ════════ Media Preview Modal (Google Drive style) ════════ */}
+      {previewIndex !== null && previewableMedia[previewIndex] && (
+        <MediaPreviewModal
+          mediaList={previewableMedia}
+          currentIndex={previewIndex}
+          onIndexChange={setPreviewIndex}
+          onClose={() => setPreviewIndex(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1643,5 +1678,129 @@ function HistoryDrawer({
         </div>
       </div>
     </>
+  );
+}
+
+// ── Google Drive Style Media Preview Modal ──
+function MediaPreviewModal({
+  mediaList,
+  currentIndex,
+  onIndexChange,
+  onClose,
+}: {
+  mediaList: MediaSource[];
+  currentIndex: number;
+  onIndexChange: (idx: number) => void;
+  onClose: () => void;
+}) {
+  const item = mediaList[currentIndex];
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowLeft') {
+        if (currentIndex > 0) onIndexChange(currentIndex - 1);
+      } else if (e.key === 'ArrowRight') {
+        if (currentIndex < mediaList.length - 1)
+          onIndexChange(currentIndex + 1);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentIndex, mediaList, onIndexChange, onClose]);
+
+  if (!item) return null;
+
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < mediaList.length - 1;
+
+  return (
+    <div className="animate-fade-in fixed inset-0 z-50 flex flex-col bg-black/95 text-white select-none">
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between border-b border-white/10 bg-black/50 px-4 py-3 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            title="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
+
+          <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+            {item.media_type === 'video' ? (
+              <Film className="h-4 w-4 text-red-400" />
+            ) : (
+              <ImageIcon className="h-4 w-4 text-emerald-400" />
+            )}
+            <span className="max-w-xs truncate text-sm font-medium md:max-w-md">
+              {item.filename}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <a
+            href={`${BACKEND_URL}/${item.filepath}`}
+            download={item.filename}
+            className="flex items-center justify-center rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            title="Download"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Download className="h-5 w-5" />
+          </a>
+        </div>
+      </div>
+
+      {/* Main Preview Container */}
+      <div className="relative flex flex-1 items-center justify-center p-4 md:p-12">
+        {/* Left Arrow Button */}
+        {hasPrev && (
+          <button
+            onClick={() => onIndexChange(currentIndex - 1)}
+            className="absolute left-4 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-white/80 backdrop-blur-sm transition-all hover:bg-white/15 hover:text-white active:scale-95"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
+        )}
+
+        {/* Right Arrow Button */}
+        {hasNext && (
+          <button
+            onClick={() => onIndexChange(currentIndex + 1)}
+            className="absolute right-4 z-10 flex h-12 w-12 items-center justify-center rounded-full bg-white/5 text-white/80 backdrop-blur-sm transition-all hover:bg-white/15 hover:text-white active:scale-95"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        )}
+
+        {/* Media Content Display */}
+        <div className="relative flex max-h-full max-w-full items-center justify-center">
+          {item.media_type === 'photo' ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={`${BACKEND_URL}/${item.filepath}`}
+              alt={item.filename}
+              className="pointer-events-none max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
+            />
+          ) : (
+            <video
+              key={item.id}
+              src={`${BACKEND_URL}/${item.filepath}`}
+              controls
+              autoPlay
+              className="max-h-[80vh] max-w-full rounded-lg shadow-2xl"
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Footer Info / Index tracker */}
+      <div className="border-t border-white/5 bg-black/40 py-2.5 text-center text-xs text-white/50">
+        {currentIndex + 1} / {mediaList.length}
+      </div>
+    </div>
   );
 }
