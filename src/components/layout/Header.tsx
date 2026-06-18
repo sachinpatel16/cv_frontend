@@ -6,6 +6,7 @@ import { Bell } from 'lucide-react';
 
 const BREADCRUMB_MAP: Record<string, string> = {
   '/dashboard': 'Dashboard',
+  '/investigations/new': 'New Investigation',
   '/services/object-counting': 'Object Counting',
   '/services/activity-detection': 'Activity Detection',
   '/services/person-search': 'Person Search',
@@ -26,7 +27,11 @@ function getInitials(name?: string | null) {
 export function Header() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const label = BREADCRUMB_MAP[pathname] ?? 'Vigilens';
+  const label =
+    BREADCRUMB_MAP[pathname] ??
+    (pathname.startsWith('/investigations/')
+      ? 'Investigation Results'
+      : 'Vigilens');
   const name = session?.user?.name ?? session?.user?.email ?? 'User';
 
   return (
