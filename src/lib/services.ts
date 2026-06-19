@@ -1,4 +1,4 @@
-import { BarChart2, Activity, Search, Eye } from 'lucide-react';
+import { BarChart2, Activity, Search, Eye, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface Service {
@@ -13,12 +13,12 @@ export interface Service {
 
 export const SERVICES_REGISTRY: Service[] = [
   {
-    id: 'object-counting',
-    label: 'Object Counting',
+    id: 'object-count',
+    label: 'Object Count',
     icon: BarChart2,
-    href: '/services/object-counting',
+    href: '/services/object-count',
     description:
-      'Count any of 80 COCO classes per frame with entry/exit tracking and heatmap export.',
+      'Count and track unique items across 80 COCO classes, with customizable vehicle and gender classification.',
     milestone: 1,
     comingSoon: false,
   },
@@ -39,6 +39,16 @@ export const SERVICES_REGISTRY: Service[] = [
     href: '/services/person-search',
     description:
       'Find anyone across hours of footage using visual similarity matching.',
+    milestone: 1,
+    comingSoon: false,
+  },
+  {
+    id: 'people-count',
+    label: 'People Count',
+    icon: Users,
+    href: '/services/people-count',
+    description:
+      'Track and count unique individuals in video streams using YOLO + ByteTrack.',
     milestone: 1,
     comingSoon: false,
   },

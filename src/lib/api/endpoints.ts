@@ -14,4 +14,10 @@ export const API_ENDPOINTS = {
     SESSIONS: '/peoplefind/sessions',
     SESSIONS_HISTORY: '/peoplefind/sessions/history',
   },
+  PEOPLECOUNT: {
+    MEDIA: '/peoplecount/media',
+  },
+  OBJECTCOUNT: {
+    MEDIA: '/objectcount/media',
+  },
 } as const;
