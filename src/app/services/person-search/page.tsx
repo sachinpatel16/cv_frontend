@@ -111,6 +111,66 @@ function formatTimestampLong(seconds: number | null): string {
   return `${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
 }
 
+// ── Timeline Marker Grouping ──────────────────────────────────────────────────
+
+interface TimelineRangeGroup {
+  id: string;
+  startTimestamp: number;
+  endTimestamp: number;
+  bestSimilarity: number;
+  matches: SearchMatch[];
+}
+
+const PROXIMITY_THRESHOLD_SECONDS = 3;
+
+function groupTimelineMatches(matches: SearchMatch[]): TimelineRangeGroup[] {
+  const sorted = [...matches].sort(
+    (a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0),
+  );
+
+  const groups: TimelineRangeGroup[] = [];
+  let currentGroup: TimelineRangeGroup | null = null;
+
+  for (const match of sorted) {
+    if (match.timestamp === null) continue;
+
+    if (!currentGroup) {
+      currentGroup = {
+        id: match.id,
+        startTimestamp: match.timestamp,
+        endTimestamp: match.timestamp,
+        bestSimilarity: match.similarity,
+        matches: [match],
+      };
+    } else {
+      const diff = match.timestamp - currentGroup.endTimestamp;
+      if (diff <= PROXIMITY_THRESHOLD_SECONDS) {
+        currentGroup.endTimestamp = match.timestamp;
+        currentGroup.bestSimilarity = Math.max(
+          currentGroup.bestSimilarity,
+          match.similarity,
+        );
+        currentGroup.matches.push(match);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = {
+          id: match.id,
+          startTimestamp: match.timestamp,
+          endTimestamp: match.timestamp,
+          bestSimilarity: match.similarity,
+          matches: [match],
+        };
+      }
+    }
+  }
+
+  if (currentGroup) {
+    groups.push(currentGroup);
+  }
+
+  return groups;
+}
+
 // ── Delete Confirmation Modal ──
 function DeleteAllModal({
   count,
@@ -415,6 +475,31 @@ export default function PersonSearchPage() {
     }
     return `${BACKEND_URL}/${match.media_source.filepath}`;
   }
+
+  const handleTimelineClick = useCallback((matchId: string) => {
+    const element = document.getElementById(`match-card-${matchId}`);
+    if (element) {
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      });
+      element.classList.add(
+        'ring-2',
+        'ring-[#60A5FA]',
+        'ring-offset-2',
+        'ring-offset-[#0D1628]',
+      );
+      setTimeout(() => {
+        element.classList.remove(
+          'ring-2',
+          'ring-[#60A5FA]',
+          'ring-offset-2',
+          'ring-offset-[#0D1628]',
+        );
+      }, 1500);
+    }
+  }, []);
 
   // Group results by video/media source for timeline view
   const videoMatches = results.filter(
@@ -857,37 +942,69 @@ export default function PersonSearchPage() {
                     {/* Horizontal scrubber timeline */}
                     <div className="relative px-4 py-4">
                       <p className="mb-3 text-[10px] font-medium tracking-wider text-[#5A7A9A] uppercase">
-                        Timeline — click a marker to view
+                        Timeline — click a marker to scroll to instance
                       </p>
 
                       {/* Ruler bar */}
                       <div className="relative h-2 rounded-full bg-[#1E3048]">
-                        {sorted.map((match) => {
+                        {(() => {
                           const maxTs =
                             Math.max(...sorted.map((m) => m.timestamp ?? 0)) ||
                             1;
-                          const pct = ((match.timestamp ?? 0) / maxTs) * 100;
-                          return (
-                            <button
-                              key={match.id}
-                              title={`${formatTimestamp(match.timestamp)} — ${Math.round(match.similarity * 100)}%`}
-                              onClick={() =>
-                                setSelectedVideo({
-                                  url: `${BACKEND_URL}/${source.filepath}`,
-                                  timestamp: match.timestamp,
-                                  filename: source.filename,
-                                })
-                              }
-                              style={{
-                                left: `${Math.min(Math.max(pct, 1), 98)}%`,
-                              }}
-                              className={cn(
-                                'absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#0D1628] transition-transform hover:scale-125',
-                                similarityBarColor(match.similarity),
-                              )}
-                            />
-                          );
-                        })}
+                          const groups = groupTimelineMatches(sorted);
+                          return groups.map((group) => {
+                            const startPct =
+                              (group.startTimestamp / maxTs) * 100;
+                            const endPct = (group.endTimestamp / maxTs) * 100;
+                            const isRange =
+                              group.endTimestamp > group.startTimestamp;
+
+                            if (isRange) {
+                              const leftPct = Math.min(startPct, 98);
+                              const rightPct = Math.min(endPct, 100);
+                              const widthPct = Math.max(
+                                rightPct - leftPct,
+                                1.5,
+                              );
+
+                              return (
+                                <button
+                                  key={group.id}
+                                  title={`${formatTimestamp(group.startTimestamp)} - ${formatTimestamp(group.endTimestamp)} (${Math.round(group.endTimestamp - group.startTimestamp)}s) · Best Match: ${Math.round(group.bestSimilarity * 100)}% · ${group.matches.length} appearance(s)`}
+                                  onClick={() =>
+                                    handleTimelineClick(group.matches[0].id)
+                                  }
+                                  style={{
+                                    left: `${leftPct}%`,
+                                    width: `${widthPct}%`,
+                                  }}
+                                  className={cn(
+                                    'absolute top-1/2 z-10 h-3 -translate-y-1/2 rounded-full border border-[#0D1628] shadow-sm shadow-black/40 transition-all hover:scale-y-125 hover:brightness-110',
+                                    similarityBarColor(group.bestSimilarity),
+                                  )}
+                                />
+                              );
+                            } else {
+                              const pct = Math.min(Math.max(startPct, 1), 98);
+                              return (
+                                <button
+                                  key={group.id}
+                                  title={`${formatTimestamp(group.startTimestamp)} · Match: ${Math.round(group.bestSimilarity * 100)}%`}
+                                  onClick={() =>
+                                    handleTimelineClick(group.matches[0].id)
+                                  }
+                                  style={{
+                                    left: `${pct}%`,
+                                  }}
+                                  className={cn(
+                                    'absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#0D1628] shadow-sm shadow-black/40 transition-transform hover:scale-125',
+                                    similarityBarColor(group.bestSimilarity),
+                                  )}
+                                />
+                              );
+                            }
+                          });
+                        })()}
                       </div>
 
                       {/* Time labels */}
@@ -910,6 +1027,7 @@ export default function PersonSearchPage() {
                       {sorted.map((match, idx) => (
                         <button
                           key={match.id}
+                          id={`match-card-${match.id}`}
                           onClick={() =>
                             setSelectedVideo({
                               url: `${BACKEND_URL}/${source.filepath}`,

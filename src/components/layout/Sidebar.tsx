@@ -56,8 +56,6 @@ function NavItem({
 }
 
 export function Sidebar() {
-  const pathname = usePathname();
-
   return (
     <aside className="flex w-auto shrink-0 flex-col border-r border-[#1E3048] bg-[#0A0F1E]">
       {/* Logo */}
