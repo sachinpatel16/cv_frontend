@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Eye, EyeOff, Loader2, Github } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { login } from '@/lib/api/auth';
+import { ApiError } from '@/types/api';
 
-export function LoginForm({
-  onSwitchToSignup,
-}: {
-  onSwitchToSignup?: () => void;
-}) {
+export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,16 +21,39 @@ export function LoginForm({
     e.preventDefault();
     setLoading(true);
     setError('');
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-    setLoading(false);
-    if (result?.error) {
-      setError('Invalid email or password. Try demo@vigilens.com / demo123');
-    } else {
-      router.push('/dashboard');
+
+    try {
+      // Step 1: Call backend directly from browser — cookies are auto-set
+      const response = await login({ email, password });
+      const user = response.data;
+
+      // Step 2: Create NextAuth session by passing user data
+      const result = await signIn('credentials', {
+        redirect: false,
+        email: user.email,
+        id: user.id,
+        name: `${user.first_name} ${user.last_name}`,
+        role: user.role,
+        tenantId: user.tenant_id,
+      });
+
+      if (result?.error) {
+        toast.error('Failed to create session');
+        setError('Failed to create session');
+      } else {
+        toast.success('Login successful');
+        router.push('/dashboard');
+      }
+    } catch (err) {
+      if (err instanceof ApiError) {
+        err.message.split('\n').forEach((line) => toast.error(line));
+        setError(err.message);
+      } else {
+        toast.error('An unexpected error occurred');
+        setError('An unexpected error occurred');
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -151,17 +174,15 @@ export function LoginForm({
         </button>
       </div>
 
-      {onSwitchToSignup && (
-        <p className="text-center text-sm text-gray-500">
-          Don&apos;t have an account?{' '}
-          <button
-            onClick={onSwitchToSignup}
-            className="font-medium text-[#1565C0] hover:underline"
-          >
-            Sign up
-          </button>
-        </p>
-      )}
+      <p className="text-center text-sm text-gray-500">
+        Don&apos;t have an account?{' '}
+        <Link
+          href="/signup"
+          className="font-medium text-[#1565C0] hover:underline"
+        >
+          Sign up
+        </Link>
+      </p>
     </div>
   );
 }

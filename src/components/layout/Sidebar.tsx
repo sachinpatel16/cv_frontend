@@ -6,6 +6,7 @@ import { signOut } from 'next-auth/react';
 import { Eye, LayoutDashboard, FileText, Settings, LogOut } from 'lucide-react';
 import { SERVICES_REGISTRY } from '@/lib/services';
 import { cn } from '@/lib/utils';
+import { logout } from '@/lib/api/auth';
 
 const topNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -50,7 +51,7 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex w-[200px] shrink-0 flex-col border-r border-[#1E3048] bg-[#0A0F1E]">
+    <aside className="flex w-auto shrink-0 flex-col border-r border-[#1E3048] bg-[#0A0F1E]">
       {/* Logo */}
       <div className="flex h-14 items-center gap-2.5 border-b border-[#1E3048] px-4">
         <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1565C0]">
@@ -95,7 +96,12 @@ export function Sidebar() {
       {/* Sign out */}
       <div className="border-t border-[#1E3048] p-3">
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={async () => {
+            try {
+              await logout();
+            } catch {}
+            signOut({ callbackUrl: '/login' });
+          }}
           className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
         >
           <LogOut className="h-4 w-4 shrink-0" />

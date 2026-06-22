@@ -8,7 +8,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/services/object-counting': 'Object Counting',
   '/services/activity-detection': 'Activity Detection',
-  '/services/person-search': 'Person / Object Search',
+  '/services/person-search': 'Person Search',
   '/reports': 'Reports',
   '/settings': 'Settings',
 };

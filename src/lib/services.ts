@@ -34,7 +34,7 @@ export const SERVICES_REGISTRY: Service[] = [
   },
   {
     id: 'person-search',
-    label: 'Person / Object Search',
+    label: 'Person Search',
     icon: Search,
     href: '/services/person-search',
     description:

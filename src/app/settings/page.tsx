@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { Save, LogOut } from 'lucide-react';
+import { logout } from '@/lib/api/auth';
 
 const inputCls =
   'w-full h-9 rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 text-sm text-[#E8EDF5] placeholder-[#5A7A9A] focus:outline-none focus:ring-2 focus:ring-[#1565C0]/30 focus:border-[#1565C0]';
@@ -155,7 +156,12 @@ export default function SettingsPage() {
 
       <div className="flex items-center justify-between">
         <button
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={async () => {
+            try {
+              await logout();
+            } catch {}
+            signOut({ callbackUrl: '/login' });
+          }}
           className="flex items-center gap-2 text-sm text-red-400 transition-colors hover:text-red-300"
         >
           <LogOut className="h-4 w-4" /> Sign out

@@ -1,5 +1,7 @@
 import type { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import { getMe } from '@/lib/api/auth';
+import { ApiError } from '@/types/api';
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -10,54 +12,46 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        console.log('Auth file loaded');
-        console.log(
-          'Secret:',
-          process.env.NEXTAUTH_SECRET || 'vigilens-dev-secret',
-        );
-        if (!credentials?.email || !credentials?.password) return null;
-        const mockUsers = [
-          {
-            id: '1',
-            email: 'demo@vigilens.com',
-            password: 'demo123',
-            name: 'Alex Morgan',
-            image: null,
-          },
-          {
-            id: '2',
-            email: 'test@vigilens.com',
-            password: 'password',
-            name: 'Jordan Lee',
-            image: null,
-          },
-        ];
-        console.log('credential', credentials);
-        const user = mockUsers.find(
-          (u) =>
-            u.email === credentials.email &&
-            u.password === credentials.password,
-        );
-        if (!user) return null;
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
+        // With the cookie-based flow, login() is called from the browser
+        // directly (so the browser receives the Set-Cookie headers).
+        // By the time authorize() is called, we just need to verify the
+        // user info. The frontend passes user data via the credentials object.
+        if (!credentials?.email) return null;
+
+        try {
+          // The frontend already called login() and has the user data.
+          // We trust the data passed from the frontend signIn() call.
+          return {
+            id: (credentials as Record<string, string>).id ?? '',
+            email: credentials.email,
+            name: (credentials as Record<string, string>).name ?? '',
+            role: (credentials as Record<string, string>).role ?? '',
+            tenantId: (credentials as Record<string, string>).tenantId ?? '',
+          };
+        } catch (error) {
+          if (error instanceof ApiError) {
+            throw new Error(error.message);
+          }
+          return null;
+        }
       },
     }),
   ],
   session: { strategy: 'jwt' },
-  pages: { signIn: '/login', error: '/dashboard' },
+  pages: { signIn: '/login', error: '/login', newUser: '/signup' },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user) {
+        token.id = user.id!;
+        token.role = user.role;
+        token.tenantId = user.tenantId;
+      }
       return token;
     },
     async session({ session, token }) {
-      if (token && session.user)
-        (session.user as { id?: string }).id = token.id as string;
+      session.user.id = token.id;
+      session.user.role = token.role;
+      session.user.tenantId = token.tenantId;
       return session;
     },
   },
