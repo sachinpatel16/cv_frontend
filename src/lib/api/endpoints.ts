@@ -14,4 +14,9 @@ export const API_ENDPOINTS = {
     SESSIONS: '/peoplefind/sessions',
     SESSIONS_HISTORY: '/peoplefind/sessions/history',
   },
+  SMOKINGDETECT: {
+    UPLOAD: '/smokingdetect/upload',
+    SESSIONS: '/smokingdetect/sessions',
+    SESSIONS_HISTORY: '/smokingdetect/sessions/history',
+  },
 } as const;
