@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { Play, Loader2, RotateCcw } from 'lucide-react';
 import { UploadZone } from '@/components/ui/UploadZone';
-import { mockActivityResults } from '@/lib/mock/stats';
 import { mockEvents } from '@/lib/mock/events';
+import { useActivityDetectionStore } from '@/stores/activityDetectionStore';
 
 const VIDEO_ACCEPT = { 'video/*': ['.mp4', '.mov', '.avi'] };
 
@@ -23,35 +22,16 @@ const SEVERITY_CLS: Record<string, string> = {
 };
 
 export default function ActivityDetectionPage() {
-  const [file, setFile] = useState<File | null>(null);
-  const [triggers, setTriggers] = useState<string[]>([
-    'loitering',
-    'perimeter',
-    'crowd',
-  ]);
-  const [running, setRunning] = useState(false);
-  const [results, setResults] = useState<typeof mockActivityResults | null>(
-    null,
-  );
-
-  function toggleTrigger(id: string) {
-    setTriggers((prev) =>
-      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id],
-    );
-  }
-
-  async function handleRun() {
-    if (!file) return;
-    setRunning(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setResults(mockActivityResults);
-    setRunning(false);
-  }
-
-  function handleReset() {
-    setFile(null);
-    setResults(null);
-  }
+  const {
+    file,
+    triggers,
+    running,
+    results,
+    setFile,
+    toggleTrigger,
+    run,
+    reset,
+  } = useActivityDetectionStore();
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -105,7 +85,7 @@ export default function ActivityDetectionPage() {
 
           <div className="flex gap-2">
             <button
-              onClick={handleRun}
+              onClick={run}
               disabled={!file || running || triggers.length === 0}
               className="flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-[#1565C0] text-sm font-medium text-white transition-colors hover:bg-[#1565C0]/90 disabled:opacity-40"
             >
@@ -119,7 +99,7 @@ export default function ActivityDetectionPage() {
             </button>
             {results && (
               <button
-                onClick={handleReset}
+                onClick={reset}
                 className="flex h-9 w-9 items-center justify-center rounded-md border border-[#1E3048] text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -156,7 +136,6 @@ export default function ActivityDetectionPage() {
                   </div>
                 ))}
               </div>
-
               <div className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
                 <div className="border-b border-[#1E3048] px-5 py-3">
                   <p className="text-xs font-semibold text-[#5A7A9A]">
