@@ -10,6 +10,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/services/object-counting': 'Object Counting',
   '/services/activity-detection': 'Activity Detection',
   '/services/person-search': 'Person Search',
+  '/services/people-count': 'People Count',
   '/reports': 'Reports',
   '/settings': 'Settings',
 };
