@@ -1,14 +1,5 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
-import {
-  listUploadedVideos,
-  uploadCCTVFootage,
-  deleteUploadedVideo,
-  processBatchSessions,
-  listAnalyticsSessions,
-  getSessionDetectedPeople,
-  getVisitorAnalytics,
-} from '@/lib/api/peopleanalytics';
 import { ApiError } from '@/types/api';
 import type {
   UploadedVideo,
@@ -16,13 +7,22 @@ import type {
   DetectedPerson,
   VisitorAnalytics,
 } from '@/types/peopleanalytics';
+import {
+  deleteUploadedVideo,
+  getSessionDetectedPeople,
+  listAnalyticsSessions,
+  listUploadedVideos,
+  processBatchSessions,
+  uploadCCTVFootage,
+} from '@/lib/api/peopleanalytics';
 
+type Tab = 'uploads' | 'configure' | 'results';
 type WizardStep = 'line' | 'thresholds' | 'confirm';
 
 interface PersonAnalysisState {
   // Tab
-  activeTab: 'analytics' | 'results';
-  setActiveTab: (tab: 'analytics' | 'results') => void;
+  activeTab: Tab;
+  setActiveTab: (tab: Tab) => void;
 
   // Uploads
   uploads: UploadedVideo[];
@@ -84,7 +84,7 @@ function advanceWizard(
 
 export const usePersonAnalysisStore = create<PersonAnalysisState>(
   (set, get) => ({
-    activeTab: 'analytics',
+    activeTab: 'uploads',
     setActiveTab: (tab) => set({ activeTab: tab }),
 
     uploads: [],
@@ -107,12 +107,12 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
         const res = await uploadCCTVFootage(files);
         toast.success(`Uploaded ${res.data.length} file(s)`);
         const fileMap: Record<string, File> = {};
-        res.data.forEach((uploaded, i) => {
+        res.data.forEach((uploaded: any, i: number) => {
           if (files[i]) fileMap[uploaded.id] = files[i];
         });
         set((s) => {
           const merged = [...s.uploads];
-          res.data.forEach((item) => {
+          res.data.forEach((item: any) => {
             if (!merged.some((e) => e.id === item.id)) merged.push(item);
           });
           return {
@@ -163,7 +163,7 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
       const { uploads, selectedUploadIds } = get();
       const selected = uploads.filter((u) => selectedUploadIds.includes(u.id));
       if (selected.length === 0) {
-        toast.error('Select at least one video to process');
+        toast.error('Select at least one video to configure');
         return;
       }
       set({
@@ -171,11 +171,11 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
         wizardStep: 'line',
         wizardVideoIndex: 0,
         videoLines: {},
-        wizardOpen: true,
+        activeTab: 'configure',
       });
     },
 
-    closeWizard: () => set({ wizardOpen: false }),
+    closeWizard: () => set({ activeTab: 'uploads' }),
     setWizardStep: (step) => set({ wizardStep: step }),
     setSimThreshold: (v) => set({ simThreshold: v }),
     setConfThreshold: (v) => set({ confThreshold: v }),
@@ -215,7 +215,7 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
         };
         const res = await processBatchSessions(payload);
         toast.success(`Started ${res.data.length} processing session(s)`);
-        set({ uploads: [], selectedUploadIds: [], wizardOpen: false });
+        set({ uploads: [], selectedUploadIds: [], activeTab: 'results' });
         onDone(res.data);
       } catch (err) {
         toast.error(

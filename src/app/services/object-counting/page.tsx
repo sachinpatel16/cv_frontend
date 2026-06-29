@@ -31,10 +31,9 @@ export default function ObjectCountingPage() {
   } = useObjectCountingStore();
 
   // Initial media fetch
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchMedia(true);
-  }, []);
+  }, [fetchMedia]);
 
   // Fetch details when a media item is selected and tab switches away from library
   useEffect(() => {

@@ -142,7 +142,7 @@ function DeleteAllModal({
   );
 }
 
-// ── Media Preview Carousel ──
+// ── MediaPreviewCarousel ──
 function MediaPreviewCarousel({
   media,
   startIndex,
@@ -158,71 +158,77 @@ function MediaPreviewCarousel({
   const isVideo = item.media_type === 'video';
   const src = `${BACKEND_URL}/${item.filepath}`;
 
+  const handlePrev = () => {
+    if (current > 0) setCurrent(current - 1);
+  };
+
+  const handleNext = () => {
+    if (current < media.length - 1) setCurrent(current + 1);
+  };
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 rounded-lg bg-white/10 p-2 text-white hover:bg-white/20"
+      >
+        <X className="h-6 w-6" />
+      </button>
+
+      {current > 0 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePrev();
+          }}
+          className="absolute left-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      )}
+
       <div
-        className="relative flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-[#1E3048] bg-[#0A0F1E] shadow-2xl"
+        className="relative max-h-[80vh] max-w-4xl overflow-hidden rounded-xl bg-black"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-3">
-          <p className="truncate text-sm font-semibold text-[#E8EDF5]">
-            {item.filename}
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#5A7A9A]">
-              {current + 1} / {media.length}
-            </span>
-            <button
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-        <div className="flex flex-1 items-center justify-center overflow-hidden bg-black/60 p-4">
-          {isVideo ? (
-            <video controls className="max-h-[60vh] max-w-full rounded-lg">
-              <source src={src} />
-            </video>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={src}
-              alt={item.filename}
-              className="max-h-[60vh] max-w-full rounded-lg object-contain"
-            />
-          )}
-        </div>
-        <div className="flex items-center justify-between border-t border-[#1E3048] px-5 py-3">
-          <button
-            onClick={() => setCurrent(Math.max(0, current - 1))}
-            disabled={current === 0}
-            className="flex items-center gap-2 rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5] disabled:opacity-30"
-          >
-            <ChevronLeft className="h-4 w-4" /> Previous
-          </button>
-          <button
-            onClick={() => setCurrent(Math.min(media.length - 1, current + 1))}
-            disabled={current === media.length - 1}
-            className="flex items-center gap-2 rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5] disabled:opacity-30"
-          >
-            Next <ChevronRight className="h-4 w-4" />
-          </button>
+        {isVideo ? (
+          <video src={src} controls autoPlay className="max-h-[80vh] w-auto" />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={item.filename}
+            className="max-h-[80vh] w-auto object-contain"
+          />
+        )}
+        <div className="absolute inset-x-0 bottom-0 bg-black/60 px-4 py-2 text-center text-xs text-white">
+          {item.filename} ({current + 1} / {media.length})
         </div>
       </div>
+
+      {current < media.length - 1 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNext();
+          }}
+          className="absolute right-4 rounded-full bg-white/10 p-3 text-white hover:bg-white/20"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      )}
     </div>
   );
 }
 
-// ── Media Library Tab ──
+// ── Library Tab ──
 function LibraryTab() {
   const {
     media,
-    mediaLoading,
+    mediaLoading: loading,
     uploading,
     selectedIds,
     deleteAllOpen,
@@ -234,190 +240,168 @@ function LibraryTab() {
     clearSelection,
     setDeleteAllOpen,
   } = usePersonSearchStore();
+
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const previewable = media.filter((m) => m.status === 'completed');
-
-  const { getRootProps: getPhotoProps, getInputProps: getPhotoInputs } =
-    useDropzone({
-      accept: { 'image/*': [] },
-      onDrop: (files) => addMedia(files),
-    });
-
-  const { getRootProps: getVideoProps, getInputProps: getVideoInputs } =
-    useDropzone({
-      accept: { 'video/*': [] },
-      onDrop: (files) => addMedia(files),
-    });
 
   useEffect(() => {
     fetchMedia();
   }, [fetchMedia]);
 
-  // Poll for processing media
-  useEffect(() => {
-    const hasPending = media.some(
-      (m) => m.status === 'pending' || m.status === 'processing',
-    );
-    if (!hasPending) return;
-    const timer = setInterval(() => fetchMedia(), 10000);
-    return () => clearInterval(timer);
-  }, [media, fetchMedia]);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: async (files) => {
+      if (files.length > 0) {
+        await addMedia(files);
+      }
+    },
+  });
+
+  const previewable = media.filter((m) => m.status === 'completed');
 
   return (
-    <div className="space-y-6">
-      {/* Upload zones */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {[
-          {
-            rootProps: getPhotoProps(),
-            inputProps: getPhotoInputs(),
-            icon: ImageIcon,
-            label: 'Upload Photos',
-            sublabel: 'JPG, PNG, WEBP',
-          },
-          {
-            rootProps: getVideoProps(),
-            inputProps: getVideoInputs(),
-            icon: Film,
-            label: 'Upload Videos',
-            sublabel: 'MP4, MOV, AVI',
-          },
-        ].map(({ rootProps, inputProps, icon: Icon, label, sublabel }) => (
-          <div
-            key={label}
-            {...rootProps}
-            className="flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-[#1E3048] p-8 text-center transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20"
-          >
-            <input {...inputProps} />
-            {uploading ? (
-              <Loader2 className="h-8 w-8 animate-spin text-[#5A7A9A]" />
-            ) : (
-              <Icon className="h-8 w-8 text-[#5A7A9A]" />
-            )}
-            <div>
-              <p className="text-sm font-medium text-[#5A7A9A]">{label}</p>
-              <p className="text-xs text-[#5A7A9A]/60">{sublabel}</p>
-            </div>
-          </div>
-        ))}
+    <div className="space-y-5">
+      {/* Upload Zone */}
+      <div
+        {...getRootProps()}
+        className={cn(
+          'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors',
+          isDragActive
+            ? 'border-[#1565C0] bg-[#1565C0]/5'
+            : 'border-[#1E3048] hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20',
+        )}
+      >
+        <input {...getInputProps()} />
+        {uploading ? (
+          <Loader2 className="h-8 w-8 animate-spin text-[#5A7A9A]" />
+        ) : (
+          <Upload className="h-8 w-8 text-[#5A7A9A]" />
+        )}
+        <p className="text-sm text-[#5A7A9A]">
+          Drag &amp; drop photos or videos here, or click to browse
+        </p>
+        <p className="text-xs text-[#5A7A9A]/60">Supports JPG, PNG, MP4, MOV</p>
       </div>
 
-      {/* Header */}
-      {media.length > 0 && (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-[#5A7A9A]">
-            <span className="font-semibold text-[#E8EDF5]">{media.length}</span>{' '}
-            item{media.length !== 1 ? 's' : ''} in library
+      {/* Media Grid Section */}
+      <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
+        <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-3">
+          <p className="text-xs font-semibold text-[#5A7A9A]">
+            Indexed Media ({media.length})
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2">
             {selectedIds.length > 0 && (
               <button
                 onClick={clearSelection}
                 className="rounded-lg border border-[#1E3048] px-2.5 py-1 text-xs text-[#5A7A9A] hover:bg-[#1E3048]"
               >
-                Deselect all
+                Deselect ({selectedIds.length})
               </button>
             )}
             <button
-              onClick={() => setDeleteAllOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-red-500/20 px-2.5 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10"
+              onClick={fetchMedia}
+              className="rounded-md p-1.5 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+              title="Refresh"
             >
-              <Trash2 className="h-3 w-3" /> Delete All
+              <RotateCcw className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={() => fetchMedia()}
-              className="rounded-lg border border-[#1E3048] p-1.5 text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
+            {media.length > 0 && (
+              <button
+                onClick={() => setDeleteAllOpen(true)}
+                className="rounded-md p-1.5 text-red-400/60 transition-colors hover:bg-red-400/10 hover:text-red-400"
+                title="Delete all media"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Grid */}
-      {mediaLoading ? (
-        <div className="flex h-40 items-center justify-center">
-          <Loader2 className="h-6 w-6 animate-spin text-[#5A7A9A]" />
-        </div>
-      ) : media.length === 0 ? (
-        <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-xl border border-[#1E3048] bg-[#0D1628]">
-          <ImageIcon className="h-10 w-10 text-[#5A7A9A]/30" />
-          <p className="text-sm text-[#5A7A9A]">
-            No media in library yet. Upload photos or videos above.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {media.map((item) => {
-            const isSelected = selectedIds.includes(item.id);
-            const previewIdx = previewable.findIndex((p) => p.id === item.id);
-            return (
-              <div
-                key={item.id}
-                className={cn(
-                  'group relative overflow-hidden rounded-xl border transition-all',
-                  isSelected
-                    ? 'border-[#3B82F6] shadow-[0_0_15px_rgba(59,130,246,0.2)]'
-                    : 'border-[#1E3048] hover:border-[#1565C0]/40',
-                )}
-              >
-                {/* Thumbnail */}
+        {loading ? (
+          <div className="flex h-40 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
+          </div>
+        ) : media.length === 0 ? (
+          <div className="flex h-40 flex-col items-center justify-center gap-3">
+            <ImageIcon className="h-10 w-10 text-[#5A7A9A]/30" />
+            <p className="text-sm text-[#5A7A9A]">
+              No media in library yet. Upload photos or videos above.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {media.map((item) => {
+              const isSelected = selectedIds.includes(item.id);
+              const previewIdx = previewable.findIndex((p) => p.id === item.id);
+              return (
                 <div
-                  className="relative aspect-video cursor-pointer bg-black/40"
-                  onClick={() =>
-                    previewIdx !== -1 && setPreviewIndex(previewIdx)
-                  }
-                >
-                  {item.media_type === 'photo' && item.filepath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={`${BACKEND_URL}/${item.filepath}`}
-                      alt={item.filename}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center">
-                      <Film className="h-6 w-6 text-[#5A7A9A]" />
-                    </div>
+                  key={item.id}
+                  className={cn(
+                    'group relative overflow-hidden rounded-xl border transition-all',
+                    isSelected
+                      ? 'border-[#3B82F6] shadow-[0_0_15px_rgba(59,130,246,0.2)]'
+                      : 'border-[#1E3048] hover:border-[#1565C0]/40',
                   )}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all group-hover:bg-black/40">
-                    {item.status === 'completed' && previewIdx !== -1 && (
-                      <Play className="h-6 w-6 text-white opacity-0 group-hover:opacity-100" />
-                    )}
-                  </div>
-                  <div className="absolute top-1.5 left-1.5">
-                    <StatusBadge status={item.status} />
-                  </div>
-                  {/* Select checkbox */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelect(item.id);
-                    }}
-                    className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border border-[#1E3048] bg-[#0A0F1E]/80"
+                >
+                  {/* Thumbnail */}
+                  <div
+                    className="relative aspect-video cursor-pointer bg-black/40"
+                    onClick={() =>
+                      previewIdx !== -1 && setPreviewIndex(previewIdx)
+                    }
                   >
-                    {isSelected && (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-[#60A5FA]" />
+                    {item.media_type === 'photo' && item.filepath ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`${BACKEND_URL}/${item.filepath}`}
+                        alt={item.filename}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center">
+                        <Film className="h-6 w-6 text-[#5A7A9A]" />
+                      </div>
                     )}
-                  </button>
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all group-hover:bg-black/40">
+                      {item.status === 'completed' && previewIdx !== -1 && (
+                        <Play className="h-6 w-6 text-white opacity-0 group-hover:opacity-100" />
+                      )}
+                    </div>
+                    <div className="absolute top-1.5 left-1.5">
+                      <StatusBadge status={item.status} />
+                    </div>
+                    {/* Select checkbox */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelect(item.id);
+                      }}
+                      className="absolute top-1.5 right-1.5 flex h-5 w-5 items-center justify-center rounded border border-[#1E3048] bg-[#0A0F1E]/80"
+                    >
+                      {isSelected && (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-[#60A5FA]" />
+                      )}
+                    </button>
+                  </div>
+                  {/* Footer */}
+                  <div className="flex items-center justify-between gap-1 px-2.5 py-1.5">
+                    <p
+                      className="min-w-0 truncate text-[10px] text-[#5A7A9A]"
+                      title={item.filename}
+                    >
+                      {item.filename}
+                    </p>
+                    <button
+                      onClick={() => removeMedia(item.id)}
+                      className="shrink-0 text-[#5A7A9A]/60 hover:text-red-400"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-                {/* Footer */}
-                <div className="flex items-center justify-between gap-1 px-2.5 py-1.5">
-                  <p className="min-w-0 truncate text-[10px] text-[#5A7A9A]">
-                    {item.filename}
-                  </p>
-                  <button
-                    onClick={() => removeMedia(item.id)}
-                    className="shrink-0 text-[#5A7A9A]/60 hover:text-red-400"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {/* Modals */}
       {deleteAllOpen && (

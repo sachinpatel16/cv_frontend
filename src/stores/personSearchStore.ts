@@ -154,7 +154,7 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
     }
     set({ searching: true });
     try {
-      const videoMedia = media.filter((m) => m.type === 'video');
+      const videoMedia = media.filter((m) => m.media_type === 'video');
       let session: SearchSession | null = null;
       let matches: SearchMatch[] = [];
 
