@@ -28,8 +28,8 @@ import {
   getAnnotatedGroupPhotoUrl,
   getAttendanceVideoUrl,
 } from '@/lib/api/employees';
+import type { AttendanceVideoSession, AttendanceLog } from '@/types/employees';
 import { useAttendanceStore } from '@/stores/attendanceStore';
-import { AttendanceVideoSession } from '@/types/employees';
 
 import { StatusBadge } from '@/components/services/shared/StatusBadge';
 
@@ -179,7 +179,7 @@ function HistoryDrawer({
                       <p className="truncate text-xs font-semibold text-[#E8EDF5]">
                         {s.video_name}
                       </p>
-                      <StatusBadge status={s.status as SessionStatus} />
+                      <StatusBadge status={s.status} />
                     </div>
                     <p className="text-[10px] text-[#5A7A9A]">
                       {formatDate(s.created_at)}
@@ -865,9 +865,7 @@ function AttendanceUploadsTab() {
                     {selectedAttSession.video_name}
                   </p>
                   <div className="mt-0.5 flex items-center gap-2">
-                    <StatusBadge
-                      status={selectedAttSession.status as SessionStatus}
-                    />
+                    <StatusBadge status={selectedAttSession.status} />
                     <span className="text-[10px] text-[#5A7A9A]">
                       {formatDate(selectedAttSession.created_at)}
                     </span>
