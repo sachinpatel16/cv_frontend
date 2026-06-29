@@ -17,6 +17,7 @@ export function StatCard({
     purple: 'border-purple-500/20 bg-purple-500/5 text-purple-400',
     green: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-400',
     amber: 'border-[#F59E0B]/20 bg-[#F59E0B]/5 text-[#F59E0B]',
+    red: 'border-red-500/20 bg-red-500/5 text-red-400',
   };
   return (
     <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
