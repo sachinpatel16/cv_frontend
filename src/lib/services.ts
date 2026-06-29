@@ -1,4 +1,11 @@
-import { BarChart2, Activity, Search, Eye, Users } from 'lucide-react';
+import {
+  BarChart2,
+  Activity,
+  Search,
+  Eye,
+  Users,
+  CalendarDays,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface Service {
@@ -16,7 +23,7 @@ export const SERVICES_REGISTRY: Service[] = [
     id: 'object-count',
     label: 'Object Count',
     icon: BarChart2,
-    href: '/services/object-count',
+    href: '/services/object-counting',
     description:
       'Count and track unique items across 80 COCO classes, with customizable vehicle and gender classification.',
     milestone: 1,
@@ -43,24 +50,24 @@ export const SERVICES_REGISTRY: Service[] = [
     comingSoon: false,
   },
   {
-    id: 'people-count',
-    label: 'People Count',
-    icon: Users,
-    href: '/services/people-count',
+    id: 'people-analytics',
+    label: 'People Analysis',
+    icon: Eye,
+    href: '/services/people-analytics',
     description:
-      'Track and count unique individuals in video streams using YOLO + ByteTrack.',
+      'CCTV video counting, interactive entry/exit crossing gate, and occupancy analytics.',
     milestone: 1,
     comingSoon: false,
   },
   {
-    id: 'license-plate',
-    label: 'License Plate Recognition',
-    icon: Eye,
-    href: '/services/license-plate',
+    id: 'attendance',
+    label: 'Attendance',
+    icon: CalendarDays,
+    href: '/services/attendance',
     description:
-      'Automatically read and log vehicle license plates from footage.',
-    milestone: 2,
-    comingSoon: true,
+      'Manage employee registry, upload photos or videos, and track attendance logs.',
+    milestone: 1,
+    comingSoon: false,
   },
 ];
 

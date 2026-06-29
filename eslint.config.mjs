@@ -1,3 +1,5 @@
 import nextVitals from 'eslint-config-next';
 
-export default [...nextVitals];
+const eslintConfig = [...nextVitals];
+
+export default eslintConfig;
