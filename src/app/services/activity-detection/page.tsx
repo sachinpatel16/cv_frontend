@@ -25,8 +25,6 @@ import {
   RotateCcw,
   X,
   ChevronRight,
-  Monitor,
-  ExternalLink,
 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';

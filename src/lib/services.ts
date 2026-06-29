@@ -1,4 +1,11 @@
-import { BarChart2, Activity, Search, Eye } from 'lucide-react';
+import {
+  BarChart2,
+  Activity,
+  Search,
+  Eye,
+  Users,
+  CalendarDays,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface Service {
@@ -13,12 +20,12 @@ export interface Service {
 
 export const SERVICES_REGISTRY: Service[] = [
   {
-    id: 'object-counting',
-    label: 'Object Counting',
+    id: 'object-count',
+    label: 'Object Count',
     icon: BarChart2,
     href: '/services/object-counting',
     description:
-      'Count any of 80 COCO classes per frame with entry/exit tracking and heatmap export.',
+      'Count and track unique items across 80 COCO classes, with customizable vehicle and gender classification.',
     milestone: 1,
     comingSoon: false,
   },
@@ -43,14 +50,24 @@ export const SERVICES_REGISTRY: Service[] = [
     comingSoon: false,
   },
   {
-    id: 'license-plate',
-    label: 'License Plate Recognition',
+    id: 'people-analytics',
+    label: 'People Analysis',
     icon: Eye,
-    href: '/services/license-plate',
+    href: '/services/people-analytics',
     description:
-      'Automatically read and log vehicle license plates from footage.',
-    milestone: 2,
-    comingSoon: true,
+      'CCTV video counting, interactive entry/exit crossing gate, and occupancy analytics.',
+    milestone: 1,
+    comingSoon: false,
+  },
+  {
+    id: 'attendance',
+    label: 'Attendance',
+    icon: CalendarDays,
+    href: '/services/attendance',
+    description:
+      'Manage employee registry, upload photos or videos, and track attendance logs.',
+    milestone: 1,
+    comingSoon: false,
   },
 ];
 
