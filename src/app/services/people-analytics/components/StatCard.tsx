@@ -10,7 +10,7 @@ export function StatCard({
   label: string;
   value: string | number | null;
   icon: React.ElementType;
-  color: 'blue' | 'purple' | 'green' | 'amber';
+  color: 'blue' | 'purple' | 'green' | 'amber' | 'red';
 }) {
   const palette = {
     blue: 'border-[#1565C0]/20 bg-[#1565C0]/5 text-[#60A5FA]',
