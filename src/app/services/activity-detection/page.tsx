@@ -25,6 +25,8 @@ import {
   RotateCcw,
   X,
   ChevronRight,
+  Monitor,
+  ExternalLink,
 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
@@ -1222,6 +1224,28 @@ export default function ActivityDetectionPage() {
           </button>
         )}
       </div>
+
+      {/* Activity API Banner */}
+      <a
+        href="/services/activity-detection/activity"
+        className="flex items-center justify-between rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 transition-colors hover:border-amber-500/40 hover:bg-amber-500/10"
+      >
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-amber-500/10 p-2">
+            <Activity className="h-4 w-4 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-amber-400">
+              Human Activity API Detectors
+            </p>
+            <p className="text-[10px] text-[#5A7A9A]">
+              Fall · Fighting · Trespassing · Loitering · Sleeping · and 4 more
+              — fully live
+            </p>
+          </div>
+        </div>
+        <ExternalLink className="h-4 w-4 shrink-0 text-amber-400/60" />
+      </a>
 
       {/* Body: sidebar + content */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">

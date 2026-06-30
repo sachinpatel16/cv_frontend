@@ -41,4 +41,9 @@ export const API_ENDPOINTS = {
     SESSIONS: '/smokingdetect/sessions',
     SESSIONS_HISTORY: '/smokingdetect/sessions/history',
   },
+  ACTIVITY: {
+    MEDIA: '/activity/media',
+    REPORT: '/activity/report',
+    REPORT_SUMMARY: '/activity/report/summary',
+  },
 } as const;
