@@ -25,8 +25,6 @@ const processQueue = (error: any) => {
 
 // Reusable 401 handler
 const handle401Error = async (error: any) => {
-  debugger; // Pause execution here to inspect the error and authentication state
-
   const originalRequest = error.config;
   console.log(
     '[Auth Interceptor] Handling 401 error for URL:',
