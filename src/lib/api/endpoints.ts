@@ -36,4 +36,14 @@ export const API_ENDPOINTS = {
     ATTENDANCE_VIDEO_PROCESS: '/employees/attendance/video/process',
     ATTENDANCE_VIDEO_SESSIONS: '/employees/attendance/video/sessions',
   },
+  SMOKINGDETECT: {
+    UPLOAD: '/smokingdetect/upload',
+    SESSIONS: '/smokingdetect/sessions',
+    SESSIONS_HISTORY: '/smokingdetect/sessions/history',
+  },
+  ACTIVITY: {
+    MEDIA: '/activity/media',
+    REPORT: '/activity/report',
+    REPORT_SUMMARY: '/activity/report/summary',
+  },
 } as const;
