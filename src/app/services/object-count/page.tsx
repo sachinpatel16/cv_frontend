@@ -445,11 +445,6 @@ export default function ObjectCountPage() {
   // Handle single deletion
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (
-      !confirm('Are you sure you want to delete this media tracking record?')
-    ) {
-      return;
-    }
     try {
       await deleteObjectCountMedia(id);
       toast.success('Media record deleted');
