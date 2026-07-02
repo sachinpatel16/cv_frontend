@@ -16,6 +16,8 @@ import {
   AlertCircle,
   Settings2,
   ChevronLeft,
+  ChevronRight,
+  History,
   Tv,
   Car,
   Layers,
@@ -91,8 +93,22 @@ function StatusBadge({
   );
 }
 
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch {
+    return iso;
+  }
+}
+
 export default function ObjectCountPage() {
   const [tab, setTab] = useState<Tab>('library');
+
+  // History Drawer state
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Media Library state
   const [media, setMedia] = useState<ObjectCountMedia[]>([]);
@@ -313,10 +329,26 @@ export default function ObjectCountPage() {
       setUploading(true);
       try {
         const res = await uploadObjectCountMedia(files, mediaType);
-        toast.success(
-          `Uploaded ${res.data.length} file(s). Select a file to configure analysis.`,
-        );
         fetchMedia(false);
+        if (res.data && res.data.length > 0) {
+          const newlyUploaded = res.data[0];
+          setSelectedMediaId(newlyUploaded.id);
+          toast.success(
+            `Uploaded successfully. Navigating to configure tracking.`,
+          );
+          if (
+            newlyUploaded.status === 'processing' ||
+            newlyUploaded.status === 'completed'
+          ) {
+            setTab('results');
+          } else {
+            setTab('search');
+          }
+        } else {
+          toast.success(
+            `Uploaded ${res.data.length} file(s). Select a file to configure analysis.`,
+          );
+        }
       } catch (err) {
         if (err instanceof ApiError) {
           toast.error(err.message);
@@ -494,10 +526,20 @@ export default function ObjectCountPage() {
         .sort((a, b) => b.count - a.count)
     : [];
 
+  const handleSelectMedia = (item: ObjectCountMedia) => {
+    setSelectedMediaId(item.id);
+    if (item.status === 'processing' || item.status === 'completed') {
+      setTab('results');
+    } else {
+      setTab('search');
+    }
+    setHistoryOpen(false);
+  };
+
   return (
     <div className="max-w-6xl space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold text-[#E8EDF5]">
             Generic Object Count & Tracking
@@ -507,19 +549,37 @@ export default function ObjectCountPage() {
             tracking, concurrency reports, and demographic metrics.
           </p>
         </div>
-        {tab !== 'library' && (
+        <div className="flex items-center gap-3">
           <button
             onClick={() => {
-              setTab('library');
-              setSelectedMediaId(null);
-              setDetails(null);
+              setHistoryOpen(true);
+              fetchMedia(false);
             }}
-            className="flex items-center gap-1.5 rounded-md border border-[#1E3048] bg-[#0D1628] px-3 py-1.5 text-xs font-medium text-[#E8EDF5] transition-colors hover:bg-[#1E3048]"
+            className="relative flex shrink-0 items-center gap-2 rounded-lg border border-[#1E3048] bg-[#0D1628] px-3 py-1.5 text-xs font-medium text-[#5A7A9A] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048] hover:text-[#E8EDF5]"
           >
-            <ChevronLeft className="h-4 w-4" />
-            Back to Library
+            <History className="h-3.5 w-3.5" />
+            History
+            {media.length > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#1565C0] text-[9px] font-bold text-white">
+                {media.length > 99 ? '99+' : media.length}
+              </span>
+            )}
           </button>
-        )}
+
+          {tab !== 'library' && (
+            <button
+              onClick={() => {
+                setTab('library');
+                setSelectedMediaId(null);
+                setDetails(null);
+              }}
+              className="flex items-center gap-1.5 rounded-md border border-[#1E3048] bg-[#0D1628] px-3 py-1.5 text-xs font-medium text-[#E8EDF5] transition-colors hover:bg-[#1E3048]"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to Library
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tabs Navigation */}
@@ -529,18 +589,33 @@ export default function ObjectCountPage() {
           { id: 'search', label: 'Search', icon: Search },
           { id: 'results', label: 'Results', icon: CheckCircle2 },
         ].map(({ id, label, icon: Icon }) => {
-          const disabled =
-            (id === 'search' || id === 'results') && !selectedMediaId;
+          const isDisabled =
+            (id === 'search' || id === 'results') &&
+            !selectedMediaId &&
+            media.length === 0;
+
           return (
             <button
               key={id}
               onClick={() => {
-                if (disabled) {
+                if (isDisabled) {
                   toast.error(
                     'Select a media item from the library first to configure or view tracking results.',
                   );
                   return;
                 }
+
+                // If user clicks on search or results without a selected media item,
+                // automatically select the first media item in the list if available.
+                if (
+                  (id === 'search' || id === 'results') &&
+                  !selectedMediaId &&
+                  media.length > 0
+                ) {
+                  const defaultMedia = media[0];
+                  setSelectedMediaId(defaultMedia.id);
+                }
+
                 setTab(id as Tab);
               }}
               className={cn(
@@ -548,7 +623,7 @@ export default function ObjectCountPage() {
                 tab === id
                   ? 'bg-[#1565C0] text-white'
                   : 'text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]',
-                disabled && 'cursor-not-allowed opacity-40',
+                isDisabled && 'cursor-not-allowed opacity-40',
               )}
             >
               <Icon className="h-4 w-4" />
@@ -1566,7 +1641,7 @@ export default function ObjectCountPage() {
                             details.media_type === 'video' ? (
                               <video
                                 ref={videoRef}
-                                src={`${BACKEND_URL}/${details.filepath}`}
+                                src={`${BACKEND_URL}/${details.processed_filepath}`}
                                 controls
                                 className="h-full w-full object-contain"
                               />
@@ -1951,6 +2026,17 @@ export default function ObjectCountPage() {
           }}
         />
       )}
+
+      {/* History Drawer */}
+      <HistoryDrawer
+        open={historyOpen}
+        media={media}
+        loading={mediaLoading}
+        onClose={() => setHistoryOpen(false)}
+        onRefresh={() => fetchMedia(true)}
+        onSelectMedia={handleSelectMedia}
+        title="Analysis History"
+      />
     </div>
   );
 }
@@ -2275,5 +2361,151 @@ function LineDrawingModal({
         </div>
       </div>
     </div>
+  );
+}
+
+interface HistoryDrawerProps {
+  open: boolean;
+  media: ObjectCountMedia[];
+  loading: boolean;
+  onClose: () => void;
+  onRefresh: () => void;
+  onSelectMedia: (item: ObjectCountMedia) => void;
+  title: string;
+}
+
+function HistoryDrawer({
+  open,
+  media,
+  loading,
+  onClose,
+  onRefresh,
+  onSelectMedia,
+  title,
+}: HistoryDrawerProps) {
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className={cn(
+          'fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity duration-300',
+          open
+            ? 'pointer-events-auto opacity-100'
+            : 'pointer-events-none opacity-0',
+        )}
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <div
+        className={cn(
+          'fixed top-0 right-0 z-50 flex h-full w-full max-w-sm flex-col border-l border-[#1E3048] bg-[#0A0F1E] shadow-2xl transition-transform duration-300 ease-in-out',
+          open ? 'translate-x-0' : 'translate-x-full',
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#1565C0]/20 bg-[#1565C0]/10">
+              <History className="h-4 w-4 text-[#60A5FA]" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[#E8EDF5]">{title}</p>
+              <p className="text-[10px] text-[#5A7A9A]">
+                {media.length} item{media.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onRefresh}
+              disabled={loading}
+              className="rounded-lg p-2 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5] disabled:opacity-40"
+              title="Refresh"
+            >
+              <RotateCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-2 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="h-6 w-6 animate-spin text-[#5A7A9A]" />
+            </div>
+          ) : media.length === 0 ? (
+            <div className="flex h-40 flex-col items-center justify-center gap-3 px-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#1E3048] bg-[#0D1628]">
+                <History className="h-6 w-6 text-[#5A7A9A]/40" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#E8EDF5]">
+                  No history yet
+                </p>
+                <p className="mt-0.5 text-xs text-[#5A7A9A]">
+                  Upload and process media to create your first session.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#1E3048]">
+              {media.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onSelectMedia(item)}
+                  className="group flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-[#1E3048]/50"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#1E3048] bg-[#0D1628] transition-colors group-hover:border-[#1565C0]/50">
+                    {item.media_type === 'photo' ? (
+                      <ImageIcon className="h-5 w-5 text-[#5A7A9A]" />
+                    ) : (
+                      <Video className="h-5 w-5 text-[#5A7A9A]" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-xs font-semibold text-[#E8EDF5]">
+                        {item.filename}
+                      </p>
+                      <StatusBadge
+                        status={item.status}
+                        progress={item.progress_percentage}
+                      />
+                    </div>
+                    <p className="text-[10px] text-[#5A7A9A]">
+                      {formatDate(item.created_at)}
+                    </p>
+                    {item.status === 'completed' &&
+                      item.total_objects_count !== null && (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[#1565C0]/10 px-2 py-0.5">
+                          <Layers className="h-3 w-3 text-[#60A5FA]" />
+                          <span className="text-[10px] font-semibold text-[#60A5FA]">
+                            {item.total_objects_count} objects
+                          </span>
+                        </span>
+                      )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[#5A7A9A]/40 transition-all group-hover:translate-x-0.5 group-hover:text-[#60A5FA]" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-[#1E3048] px-5 py-3">
+          <p className="text-center text-[10px] text-[#5A7A9A]">
+            Click any item to load its results
+          </p>
+        </div>
+      </div>
+    </>
   );
 }
