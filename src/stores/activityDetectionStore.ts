@@ -4,23 +4,34 @@ import {
   uploadActivityMedia,
   processActivityMedia,
   getActivityProcessStatus,
-  getActivityProcessHistory,
+  getActivityAlertsReport,
+  getActivityAlertsSummary,
   listActivityMedia,
   deleteActivityMedia,
 } from '@/lib/api/activity';
+import {
+  uploadVideoForAnalysis,
+  getSmokingSessionStatus,
+  getSmokingSessionHistory,
+  deleteSmokingSession,
+} from '@/lib/api/smokingdetect';
 import { ApiError } from '@/types/api';
 import type {
   ActivityMedia,
   ActivityProcessStatus,
   ActivityAlert,
+  ActivityAlertSummary,
   ActivityProcessPayload,
+  UnifiedHistoryItem,
 } from '@/types/activity';
+import type { SmokingSession, SmokingEvent } from '@/types/smokingdetect';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detector IDs & defaults
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type ActivityDetectorId =
+  | 'smoking'
   | 'fall'
   | 'fighting'
   | 'trespassing'
@@ -38,6 +49,9 @@ export type ActivityTab =
   | 'processing'
   | 'results'
   | 'history';
+
+/** Which backend API a current job belongs to */
+export type JobFlavor = 'smoking' | 'activity';
 
 interface DetectFlags {
   fall: boolean;
@@ -64,6 +78,7 @@ const DETECTOR_DEFAULTS: Record<
   ActivityDetectorId,
   Partial<DetectFlags> & { selectedActivities?: string[] }
 > = {
+  smoking: {},
   fall: { fall: true },
   fighting: { aggression: true },
   trespassing: { intrusion: true },
@@ -89,6 +104,9 @@ interface ActivityDetectionState {
   setSelectedDetector: (id: ActivityDetectorId) => void;
   setActiveTab: (tab: ActivityTab) => void;
 
+  // ── Job Flavor ──────────────────────────────────────────────────────────────
+  jobFlavor: JobFlavor;
+
   // ── Media Upload ────────────────────────────────────────────────────────────
   uploadedFile: File | null;
   mediaType: 'photo' | 'video';
@@ -112,18 +130,33 @@ interface ActivityDetectionState {
   setSelectedActivities: (v: string[] | null) => void;
   applyDetectorDefaults: (id: ActivityDetectorId) => void;
 
-  // ── Processing ──────────────────────────────────────────────────────────────
+  // ── Processing — Activity ───────────────────────────────────────────────────
   processStatus: ActivityProcessStatus | null;
   alerts: ActivityAlert[];
+  summary: ActivityAlertSummary | null;
+  setSummary: (s: ActivityAlertSummary | null) => void;
   submitting: boolean;
   startProcessing: () => Promise<void>;
   pollStatus: () => Promise<void>;
 
+  // ── Processing — Smoking ────────────────────────────────────────────────────
+  smokingSession: SmokingSession | null;
+  smokingEvents: SmokingEvent[];
+  smokingFilename: string | null;
+
+  // ── Viewed/Loaded Results ──────────────────────────────────────────────────
+  viewedMedia: ActivityMedia | null;
+  viewedStatus: ActivityProcessStatus | null;
+  viewedAlerts: ActivityAlert[];
+  viewedSummary: ActivityAlertSummary | null;
+  viewedSmokingSession: SmokingSession | null;
+  viewedSmokingEvents: SmokingEvent[];
+
   // ── History ─────────────────────────────────────────────────────────────────
-  historyMedia: ActivityMedia[];
+  unifiedHistory: UnifiedHistoryItem[];
   historyLoading: boolean;
   fetchHistory: () => Promise<void>;
-  loadHistoryItem: (media: ActivityMedia) => Promise<void>;
+  loadHistoryItem: (item: UnifiedHistoryItem) => Promise<void>;
   removeMedia: (mediaId: string) => Promise<void>;
 
   // ── Reset ────────────────────────────────────────────────────────────────────
@@ -139,6 +172,7 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
     // ── Detector & Tab ─────────────────────────────────────────────────────────
     selectedDetector: 'fall',
     activeTab: 'media',
+    jobFlavor: 'activity',
 
     setSelectedDetector: (id) => {
       get().applyDetectorDefaults(id);
@@ -150,6 +184,19 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
         polygonPoints: null,
         processStatus: null,
         alerts: [],
+        summary: null,
+        smokingSession: null,
+        smokingEvents: [],
+        smokingFilename: null,
+        jobFlavor: id === 'smoking' ? 'smoking' : 'activity',
+
+        // Reset viewed states
+        viewedMedia: null,
+        viewedStatus: null,
+        viewedAlerts: [],
+        viewedSummary: null,
+        viewedSmokingSession: null,
+        viewedSmokingEvents: [],
       });
     },
 
@@ -165,13 +212,48 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       set({ uploadedFile: file, mediaType: type, uploadedMedia: null }),
 
     uploadMedia: async () => {
-      const { uploadedFile, mediaType } = get();
+      const { uploadedFile, mediaType, selectedDetector } = get();
       if (!uploadedFile) return;
       set({ uploading: true });
+
+      // ── SMOKING: upload + trigger in one call ────────────────────────────────
+      if (selectedDetector === 'smoking') {
+        try {
+          const res = await uploadVideoForAnalysis(
+            uploadedFile,
+            get().interval,
+          );
+          set({
+            smokingSession: res.data,
+            smokingEvents: [],
+            smokingFilename: uploadedFile.name,
+            jobFlavor: 'smoking',
+            // Skip Configure — go straight to Processing
+            activeTab: 'processing',
+
+            // Set viewed state so Results tab displays it when ready
+            viewedSmokingSession: res.data,
+            viewedSmokingEvents: [],
+          });
+          toast.success('Smoking analysis started — auto-checking every 10s…');
+        } catch (err) {
+          if (err instanceof ApiError) toast.error(err.message);
+          else toast.error('Upload failed. Please try again.');
+        } finally {
+          set({ uploading: false });
+        }
+        return;
+      }
+
+      // ── ACTIVITY: upload only, then go to Configure ──────────────────────────
       try {
         const res = await uploadActivityMedia([uploadedFile], mediaType);
         const media = res.data[0];
-        set({ uploadedMedia: media, activeTab: 'configure' });
+        set({
+          uploadedMedia: media,
+          jobFlavor: 'activity',
+          activeTab: 'configure',
+        });
         toast.success('Media uploaded — now configure detection settings');
       } catch (err) {
         if (err instanceof ApiError) toast.error(err.message);
@@ -185,7 +267,7 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
     polygonPoints: null,
     setPolygonPoints: (pts) => set({ polygonPoints: pts }),
 
-    interval: 1.0,
+    interval: 0.5,
     setInterval: (v) => set({ interval: v }),
 
     detectFlags: { ...ALL_OFF, fall: true },
@@ -211,9 +293,11 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       });
     },
 
-    // ── Processing ─────────────────────────────────────────────────────────────
+    // ── Processing — Activity ──────────────────────────────────────────────────
     processStatus: null,
     alerts: [],
+    summary: null,
+    setSummary: (s) => set({ summary: s }),
     submitting: false,
 
     startProcessing: async () => {
@@ -247,7 +331,16 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       try {
         await processActivityMedia(uploadedMedia.id, payload);
         const statusRes = await getActivityProcessStatus(uploadedMedia.id);
-        set({ processStatus: statusRes.data, activeTab: 'processing' });
+        set({
+          processStatus: statusRes.data,
+          activeTab: 'processing',
+
+          // Also configure viewed states for ResultsTab
+          viewedMedia: uploadedMedia,
+          viewedStatus: statusRes.data,
+          viewedAlerts: [],
+          viewedSummary: null,
+        });
         toast.success('Detection started — auto-checking every 10s…');
       } catch (err) {
         if (err instanceof ApiError) toast.error(err.message);
@@ -258,17 +351,85 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
     },
 
     pollStatus: async () => {
-      const { uploadedMedia, processStatus } = get();
+      const { jobFlavor, uploadedMedia, processStatus, smokingSession } = get();
+
+      // ── SMOKING polling ──────────────────────────────────────────────────────
+      if (jobFlavor === 'smoking') {
+        const sessionId = smokingSession?.id;
+        if (!sessionId) return;
+        try {
+          const res = await getSmokingSessionStatus(sessionId);
+          set({ smokingSession: res.data, smokingEvents: res.data.events });
+
+          // If the viewed session is this active polling session, update its results in real-time
+          if (get().viewedSmokingSession?.id === sessionId) {
+            set({
+              viewedSmokingSession: res.data,
+              viewedSmokingEvents: res.data.events,
+            });
+          }
+
+          if (res.data.status === 'completed') {
+            set({
+              viewedSmokingSession: res.data,
+              viewedSmokingEvents: res.data.events,
+              activeTab: 'results',
+            });
+            const count = res.data.events.filter(
+              (e) => e.status === 'smoking_confirmed',
+            ).length;
+            toast.success(
+              count > 0
+                ? `🚬 Detection complete — ${count} confirmed smoking moment${count !== 1 ? 's' : ''}`
+                : '✅ Detection complete — no smoking detected',
+              { duration: 5000 },
+            );
+          } else if (res.data.status === 'failed') {
+            toast.error('Detection failed. Please re-process and try again.');
+          }
+        } catch {
+          // silently continue polling
+        }
+        return;
+      }
+
+      // ── ACTIVITY polling ─────────────────────────────────────────────────────
       const mediaId = uploadedMedia?.id ?? processStatus?.media_id;
       if (!mediaId) return;
       try {
         const res = await getActivityProcessStatus(String(mediaId));
         set({ processStatus: res.data });
 
+        // If currently viewing this media in results, update its status
+        if (get().viewedMedia?.id === String(mediaId)) {
+          set({ viewedStatus: res.data });
+        }
+
         if (res.data.status === 'completed') {
-          const alertRes = await getActivityProcessHistory(String(mediaId));
-          set({ alerts: alertRes.data, activeTab: 'results' });
-          const count = alertRes.data.length;
+          const [alertRes, summaryRes] = await Promise.allSettled([
+            getActivityAlertsReport({ mediaId: String(mediaId) }),
+            getActivityAlertsSummary(String(mediaId)),
+          ]);
+
+          const alertData =
+            alertRes.status === 'fulfilled' ? alertRes.value.data : [];
+          const summaryData =
+            summaryRes.status === 'fulfilled' ? summaryRes.value.data : null;
+
+          // Save active results
+          set({ alerts: alertData, summary: summaryData });
+
+          // If currently viewing this media OR if this is the active media that just finished,
+          // load these results into the viewed state and navigate.
+          set({
+            viewedMedia: uploadedMedia,
+            viewedStatus: res.data,
+            viewedAlerts: alertData,
+            viewedSummary: summaryData,
+            activeTab: 'results',
+          });
+
+          const count = alertData.length;
           toast.success(
             count > 0
               ? `✅ Detection complete — ${count} alert${count !== 1 ? 's' : ''} found`
@@ -283,15 +444,64 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       }
     },
 
+    // ── Processing — Smoking ───────────────────────────────────────────────────
+    smokingSession: null,
+    smokingEvents: [],
+    smokingFilename: null,
+
+    // ── Viewed/Loaded Results ──────────────────────────────────────────────────
+    viewedMedia: null,
+    viewedStatus: null,
+    viewedAlerts: [],
+    viewedSummary: null,
+    viewedSmokingSession: null,
+    viewedSmokingEvents: [],
+
     // ── History ────────────────────────────────────────────────────────────────
-    historyMedia: [],
+    unifiedHistory: [],
     historyLoading: false,
 
     fetchHistory: async () => {
       set({ historyLoading: true });
       try {
-        const res = await listActivityMedia();
-        set({ historyMedia: res.data });
+        const [smokingRes, activityRes] = await Promise.allSettled([
+          getSmokingSessionHistory(),
+          listActivityMedia(),
+        ]);
+
+        const smokingRows: UnifiedHistoryItem[] =
+          smokingRes.status === 'fulfilled'
+            ? smokingRes.value.data.map((s) => ({
+                id: s.id,
+                flavor: 'smoking' as const,
+                displayName: `Smoking Session`,
+                status: s.status,
+                created_at: s.created_at,
+                overall_status: s.overall_status,
+                total_events: s.total_events,
+                smoking_interval: s.interval,
+              }))
+            : [];
+
+        const activityRows: UnifiedHistoryItem[] =
+          activityRes.status === 'fulfilled'
+            ? activityRes.value.data.map((m) => ({
+                id: m.id,
+                flavor: 'activity' as const,
+                displayName: m.filename,
+                status: m.status,
+                created_at: m.created_at,
+                media_type: m.media_type,
+                config: m.config,
+              }))
+            : [];
+
+        const merged = [...smokingRows, ...activityRows].sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+
+        set({ unifiedHistory: merged });
       } catch {
         // silently fail
       } finally {
@@ -299,21 +509,62 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       }
     },
 
-    loadHistoryItem: async (media) => {
-      try {
-        const statusRes = await getActivityProcessStatus(media.id);
-        let alerts: ActivityAlert[] = [];
-        if (statusRes.data.status === 'completed') {
-          const alertRes = await getActivityProcessHistory(media.id);
-          alerts = alertRes.data;
+    loadHistoryItem: async (item) => {
+      // Navigate optimistically
+      set({ activeTab: 'results', jobFlavor: item.flavor });
+
+      // ── SMOKING history load ─────────────────────────────────────────────────
+      if (item.flavor === 'smoking') {
+        try {
+          const res = await getSmokingSessionStatus(item.id);
+          // Set viewed state ONLY — do NOT overwrite active background processing states
+          set({
+            viewedSmokingSession: res.data,
+            viewedSmokingEvents: res.data.events,
+            smokingFilename: item.displayName,
+          });
+          toast.success(`Loaded: ${item.displayName}`);
+        } catch (err) {
+          if (err instanceof ApiError) toast.error(err.message);
+          else toast.error('Failed to load smoking session.');
         }
+        return;
+      }
+
+      // ── ACTIVITY history load ────────────────────────────────────────────────
+      try {
+        const statusRes = await getActivityProcessStatus(item.id);
+
+        const mediaRecord: ActivityMedia = {
+          id: item.id,
+          filename: item.displayName,
+          filepath: '',
+          media_type: item.media_type ?? 'video',
+          status: item.status,
+          created_at: item.created_at,
+        };
+
+        // Set viewed state ONLY — do NOT overwrite active background processing states
         set({
-          uploadedMedia: media,
-          processStatus: statusRes.data,
-          alerts,
-          activeTab: 'results',
+          viewedMedia: mediaRecord,
+          viewedStatus: statusRes.data,
+          viewedAlerts: [],
+          viewedSummary: null,
         });
-        toast.success(`Loaded: ${media.filename}`);
+
+        if (statusRes.data.status === 'completed') {
+          const [alertRes, summaryRes] = await Promise.allSettled([
+            getActivityAlertsReport({ mediaId: item.id }),
+            getActivityAlertsSummary(item.id),
+          ]);
+          const alertData =
+            alertRes.status === 'fulfilled' ? alertRes.value.data : [];
+          const summaryData =
+            summaryRes.status === 'fulfilled' ? summaryRes.value.data : null;
+          set({ viewedAlerts: alertData, viewedSummary: summaryData });
+        }
+
+        toast.success(`Loaded: ${item.displayName}`);
       } catch (err) {
         if (err instanceof ApiError) toast.error(err.message);
         else toast.error('Failed to load history item.');
@@ -322,14 +573,20 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
 
     removeMedia: async (mediaId) => {
       try {
-        await deleteActivityMedia(mediaId);
+        const item = get().unifiedHistory.find((m) => m.id === mediaId);
+        if (item?.flavor === 'smoking') {
+          await deleteSmokingSession(mediaId);
+          toast.success('Smoking session deleted');
+        } else {
+          await deleteActivityMedia(mediaId);
+          toast.success('Media deleted');
+        }
         set((s) => ({
-          historyMedia: s.historyMedia.filter((m) => m.id !== mediaId),
+          unifiedHistory: s.unifiedHistory.filter((m) => m.id !== mediaId),
         }));
-        toast.success('Media deleted');
       } catch (err) {
         if (err instanceof ApiError) toast.error(err.message);
-        else toast.error('Failed to delete media.');
+        else toast.error('Failed to delete history item.');
       }
     },
 
@@ -337,16 +594,29 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
     reset: () =>
       set({
         activeTab: 'media',
+        jobFlavor: 'activity',
         uploadedFile: null,
         uploadedMedia: null,
         polygonPoints: null,
         processStatus: null,
         alerts: [],
+        summary: null,
+        smokingSession: null,
+        smokingEvents: [],
+        smokingFilename: null,
         detectFlags: { ...ALL_OFF, fall: true },
         selectedActivities: null,
-        interval: 1.0,
+        interval: 0.5,
         loiteringThreshold: 15.0,
         occupancyLimit: 5,
+
+        // Reset viewed states
+        viewedMedia: null,
+        viewedStatus: null,
+        viewedAlerts: [],
+        viewedSummary: null,
+        viewedSmokingSession: null,
+        viewedSmokingEvents: [],
       }),
   }),
 );

@@ -20,11 +20,38 @@ function timeAgo(iso: string) {
 }
 
 export function ProcessingTab() {
-  const { processStatus, uploadedMedia, selectedDetector, setActiveTab } =
-    useActivityDetectionStore();
+  const {
+    jobFlavor,
+    processStatus,
+    uploadedMedia,
+    smokingSession,
+    smokingFilename,
+    selectedDetector,
+    setActiveTab,
+  } = useActivityDetectionStore();
   const det = getDetectorDef(selectedDetector);
 
-  const status = processStatus?.status ?? 'pending';
+  const isSmoking = jobFlavor === 'smoking';
+  const status = isSmoking
+    ? (smokingSession?.status ?? 'pending')
+    : (processStatus?.status ?? 'pending');
+
+  const filename = isSmoking
+    ? (smokingFilename ?? 'Smoking Session')
+    : (uploadedMedia?.filename ?? '');
+
+  const mediaId = isSmoking
+    ? (smokingSession?.id ?? '')
+    : (uploadedMedia?.id ?? '');
+
+  const createdAt = isSmoking
+    ? smokingSession?.created_at
+    : uploadedMedia?.created_at;
+
+  const displayMediaType = isSmoking
+    ? 'video'
+    : (uploadedMedia?.media_type ?? 'video');
+
   const isRunning = status === 'pending' || status === 'processing';
 
   const STATUS_MAP: Record<
@@ -120,7 +147,7 @@ export function ProcessingTab() {
       </div>
 
       {/* Media info */}
-      {uploadedMedia && (
+      {mediaId && (
         <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
           <p className="mb-3 text-[10px] font-semibold tracking-widest text-[#5A7A9A] uppercase">
             Job Info
@@ -139,7 +166,7 @@ export function ProcessingTab() {
                 label: 'File',
                 value: (
                   <span className="truncate font-medium text-[#E8EDF5]">
-                    {uploadedMedia.filename}
+                    {filename}
                   </span>
                 ),
               },
@@ -147,7 +174,7 @@ export function ProcessingTab() {
                 label: 'Type',
                 value: (
                   <span className="text-[#E8EDF5] capitalize">
-                    {uploadedMedia.media_type}
+                    {displayMediaType}
                   </span>
                 ),
               },
@@ -155,7 +182,7 @@ export function ProcessingTab() {
                 label: 'Submitted',
                 value: (
                   <span className="text-[#E8EDF5]">
-                    {timeAgo(uploadedMedia.created_at)}
+                    {createdAt ? timeAgo(createdAt) : '—'}
                   </span>
                 ),
               },
@@ -167,7 +194,7 @@ export function ProcessingTab() {
             ))}
           </dl>
           <p className="mt-3 text-[10px] text-[#5A7A9A]">
-            Media ID: <span className="font-mono">{uploadedMedia.id}</span>
+            Media ID: <span className="font-mono">{mediaId}</span>
           </p>
         </div>
       )}

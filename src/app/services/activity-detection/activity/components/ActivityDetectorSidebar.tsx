@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import {
+  Flame,
   ArrowDownCircle,
   Zap,
   AlertOctagon,
@@ -13,7 +14,6 @@ import {
   User,
   Package,
 } from 'lucide-react';
-import { Flame } from 'lucide-react';
 import {
   useActivityDetectionStore,
   type ActivityDetectorId,
@@ -32,6 +32,18 @@ interface DetectorDef {
 }
 
 export const DETECTOR_CATALOG: DetectorDef[] = [
+  {
+    id: 'smoking',
+    label: 'Smoking Detection',
+    description:
+      'Multi-signal AI: cigarette + lit tip + smoke plume confirmation',
+    Icon: Flame,
+    accent: '#F59E0B',
+    accentBg: 'bg-amber-500/10',
+    accentText: 'text-amber-400',
+    accentBorder: 'border-amber-500/40',
+    status: 'live',
+  },
   {
     id: 'fall',
     label: 'Fall Detection',

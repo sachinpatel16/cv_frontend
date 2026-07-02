@@ -6,6 +6,7 @@ export interface ActivityMedia {
   media_type: 'photo' | 'video';
   status: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
+  config?: ActivityConfig | null;
 }
 
 /** Active configuration for a media file */
@@ -76,4 +77,30 @@ export interface ActivityProcessPayload {
   detect_walking: boolean;
   selected_activities: string[] | null;
   polygon_points: [number, number][] | null;
+}
+
+/**
+ * Unified history row — merges smoking sessions and activity media into one
+ * displayable list for the History tab. Tagged by `flavor` for dispatch.
+ */
+export interface UnifiedHistoryItem {
+  id: string;
+  /** Which backend this row came from */
+  flavor: 'smoking' | 'activity';
+  /** Actual filename for both flavors (file.name captured at upload time for smoking) */
+  displayName: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  created_at: string;
+  // activity-only
+  media_type?: 'photo' | 'video';
+  config?: ActivityConfig | null;
+  // smoking-only
+  overall_status?:
+    | 'smoking_confirmed'
+    | 'smoking_likely'
+    | 'holding'
+    | 'clean'
+    | null;
+  total_events?: number;
+  smoking_interval?: number;
 }

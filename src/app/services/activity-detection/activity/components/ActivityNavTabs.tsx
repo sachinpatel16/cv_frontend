@@ -22,18 +22,37 @@ const TABS: { id: ActivityTab; label: string; Icon: React.ElementType }[] = [
 ];
 
 export function ActivityNavTabs() {
-  const { activeTab, setActiveTab, uploadedMedia, processStatus, alerts } =
-    useActivityDetectionStore();
+  const {
+    activeTab,
+    setActiveTab,
+    jobFlavor,
+    uploadedMedia,
+    smokingSession,
+    processStatus,
+    alerts,
+    smokingEvents,
+  } = useActivityDetectionStore();
+
+  const hasActiveJob =
+    jobFlavor === 'smoking' ? !!smokingSession : !!uploadedMedia;
 
   const isLocked = (id: ActivityTab) => {
     if (id === 'configure' || id === 'processing' || id === 'results') {
-      return !uploadedMedia;
+      return !hasActiveJob;
     }
     return false;
   };
 
   const countFor = (id: ActivityTab) => {
-    if (id === 'results') return alerts.length > 0 ? alerts.length : undefined;
+    if (id === 'results') {
+      if (jobFlavor === 'smoking') {
+        const confirmed = smokingEvents.filter(
+          (e) => e.status === 'smoking_confirmed',
+        ).length;
+        return confirmed > 0 ? confirmed : undefined;
+      }
+      return alerts.length > 0 ? alerts.length : undefined;
+    }
     return undefined;
   };
 

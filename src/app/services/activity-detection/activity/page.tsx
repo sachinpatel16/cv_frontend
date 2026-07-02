@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { RotateCcw } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useActivityDetectionStore } from '@/stores/activityDetectionStore';
 import { ActivityNavTabs } from './components/ActivityNavTabs';
 import { ActivityDetectorSidebar } from './components/ActivityDetectorSidebar';
@@ -14,19 +15,37 @@ import { HistoryTab } from './components/HistoryTab';
 const POLL_MS = 10_000;
 
 export default function ActivityPage() {
-  const { activeTab, processStatus, pollStatus, uploadedMedia, reset } =
-    useActivityDetectionStore();
+  const {
+    activeTab,
+    jobFlavor,
+    processStatus,
+    smokingSession,
+    uploadedMedia,
+    pollStatus,
+    reset,
+  } = useActivityDetectionStore();
 
-  // ── 10-second polling ──────────────────────────────────────────────────────
+  // ── 10-second polling (flavor-aware) ───────────────────────────────────────
   useEffect(() => {
-    if (!uploadedMedia) return;
-    const s = processStatus?.status;
-    if (s === 'completed' || s === 'failed') return;
-    if (!processStatus) return; // not started yet
+    if (jobFlavor === 'smoking') {
+      // Poll while smoking session is pending/processing
+      const s = smokingSession?.status;
+      if (!smokingSession || s === 'completed' || s === 'failed') return;
+      const timer = setInterval(() => pollStatus(), POLL_MS);
+      return () => clearInterval(timer);
+    } else {
+      // Poll while activity job is pending/processing
+      if (!uploadedMedia) return;
+      const s = processStatus?.status;
+      if (s === 'completed' || s === 'failed') return;
+      if (!processStatus) return;
+      const timer = setInterval(() => pollStatus(), POLL_MS);
+      return () => clearInterval(timer);
+    }
+  }, [jobFlavor, smokingSession, processStatus, uploadedMedia, pollStatus]);
 
-    const timer = setInterval(() => pollStatus(), POLL_MS);
-    return () => clearInterval(timer);
-  }, [processStatus, uploadedMedia, pollStatus]);
+  const hasActiveJob =
+    jobFlavor === 'smoking' ? !!smokingSession : !!uploadedMedia;
 
   return (
     <div className="max-w-7xl space-y-5">
@@ -37,11 +56,11 @@ export default function ActivityPage() {
             Human Activity Detection
           </h1>
           <p className="mt-1 text-sm text-[#5A7A9A]">
-            AI-powered behavioural analysis — detect falls, fights, trespassing,
-            loitering and more.
+            AI-powered behavioural analysis — smoking, falls, fights,
+            trespassing, loitering and more.
           </p>
         </div>
-        {uploadedMedia && (
+        {hasActiveJob && (
           <button
             onClick={reset}
             className="flex shrink-0 items-center gap-2 rounded-lg border border-[#1E3048] bg-[#0D1628] px-3 py-2 text-xs font-medium text-[#5A7A9A] transition-colors hover:border-red-400/30 hover:text-red-400"
@@ -56,9 +75,14 @@ export default function ActivityPage() {
       <ActivityNavTabs />
 
       {/* ── Body: sidebar + content ── */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
-        {/* Left sidebar — detector selector */}
-        <ActivityDetectorSidebar />
+      <div
+        className={cn(
+          'grid grid-cols-1 gap-5',
+          activeTab === 'media' && 'lg:grid-cols-[260px_1fr]',
+        )}
+      >
+        {/* Left sidebar — only shown on media tab */}
+        {activeTab === 'media' && <ActivityDetectorSidebar />}
 
         {/* Right — tab content */}
         <div className="min-w-0 space-y-4">

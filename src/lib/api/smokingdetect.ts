@@ -104,3 +104,23 @@ export function getAnnotatedVideoUrl(sessionId: string): string {
   const base = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
   return `${base}/api/v1/smokingdetect/sessions/${sessionId}/video`;
 }
+
+/** Delete a smoking detection session and its associated data */
+export async function deleteSmokingSession(
+  sessionId: string,
+): Promise<ApiResponse<null>> {
+  try {
+    const response = await apiClient.delete<ApiResponse<null>>(
+      `${API_ENDPOINTS.SMOKINGDETECT.SESSIONS}/${sessionId}`,
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        error.response?.data?.message || 'Failed to delete smoking session',
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}
