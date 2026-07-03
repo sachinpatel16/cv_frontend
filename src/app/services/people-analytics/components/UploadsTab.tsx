@@ -3,6 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { Upload, Loader2, Video, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePersonAnalysisStore } from '@/stores/personAnalysisStore';
+import { getRawVideoUrl } from '@/lib/api/peopleanalytics';
 
 export function UploadsTab() {
   const {
@@ -93,14 +94,16 @@ export function UploadsTab() {
                     )}
                   </div>
 
-                  <Video
-                    className={cn(
-                      'h-4 w-4 shrink-0 transition-colors',
-                      selectedUploadIds.includes(u.id)
-                        ? 'text-[#60A5FA]'
-                        : 'text-[#5A7A9A]',
-                    )}
-                  />
+                  {/* Video Thumbnail Preview */}
+                  <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md border border-[#1E3048]/80 bg-[#070B14]">
+                    <video
+                      src={`${getRawVideoUrl(u.saved_path)}#t=0.5`}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
                   <span
                     className={cn(
                       'min-w-0 flex-1 truncate text-xs transition-colors',

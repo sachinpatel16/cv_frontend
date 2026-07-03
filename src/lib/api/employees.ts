@@ -245,10 +245,12 @@ export function getAttendanceVideoUrl(sessionId: string): string {
 
 /** Returns the display URL for an employee profile photo */
 export function getEmployeePhotoUrl(photoPath: string): string {
-  return `${BACKEND_URL}/${photoPath}`;
+  const normalized = photoPath.replace(/\\/g, '/');
+  return `${BACKEND_URL}/${normalized}`;
 }
 
 /** Returns the display URL for an annotated group photo */
 export function getAnnotatedGroupPhotoUrl(imagePath: string): string {
-  return `${BACKEND_URL}/${imagePath}`;
+  const normalized = imagePath.replace(/\\/g, '/');
+  return `${BACKEND_URL}/${normalized}`;
 }

@@ -23,7 +23,7 @@ export const SERVICES_REGISTRY: Service[] = [
     id: 'object-count',
     label: 'Object Count',
     icon: BarChart2,
-    href: '/services/object-counting',
+    href: '/services/object-count',
     description:
       'Count and track unique items across 80 COCO classes, with customizable vehicle and gender classification.',
     milestone: 1,

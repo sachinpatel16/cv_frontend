@@ -101,8 +101,39 @@ const handle401Error = async (error: any) => {
   }
 };
 
+const normalizePaths = (obj: any): any => {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === 'string') {
+    if (
+      obj.includes('\\') &&
+      (obj.includes('storage') ||
+        obj.includes('outputs') ||
+        obj.includes('inputs'))
+    ) {
+      return obj.replace(/\\/g, '/');
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(normalizePaths);
+  }
+  if (typeof obj === 'object') {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        newObj[key] = normalizePaths(obj[key]);
+      }
+    }
+    return newObj;
+  }
+  return obj;
+};
+
 apiClient.interceptors.response.use(
   (response) => {
+    if (response.data) {
+      response.data = normalizePaths(response.data);
+    }
     // Case 1: Backend returns HTTP 200 OK but with an unauthenticated status in the body
     if (response.data && response.data.status === 401) {
       console.warn(

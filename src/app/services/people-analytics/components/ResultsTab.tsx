@@ -159,7 +159,7 @@ export function ResultsTab() {
                     color="blue"
                   />
                   <StatCard
-                    label="Total Crossings"
+                    label="Total Person"
                     value={selectedSession.total_person_count}
                     icon={Eye}
                     color="purple"
@@ -277,13 +277,13 @@ export function ResultsTab() {
                   >
                     <X className="h-4 w-4" />
                   </button>
-                  <div className="h-28 w-28 overflow-hidden rounded-2xl border-4 border-[#1E3048] shadow-2xl">
+                  <div className="h-40 w-40 overflow-hidden rounded-2xl border-4 border-[#1E3048] bg-[#070B14] shadow-2xl">
                     {previewPerson.photo_path ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={`${BACKEND_URL}/${previewPerson.photo_path}`}
                         alt={previewPerson.name}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full object-contain"
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center bg-[#1E3048]">

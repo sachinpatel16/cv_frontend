@@ -172,3 +172,9 @@ export function getAnnotatedVideoUrl(sessionId: string): string {
   );
   return `${BACKEND_URL}/api/v1/peopleanalytics/sessions/${sessionId}/video`;
 }
+
+/** Returns the HTTP URL for a raw uploaded video file */
+export function getRawVideoUrl(savedPath: string): string {
+  const normalized = savedPath.replace(/\\/g, '/');
+  return `${BACKEND_URL}/${normalized}`;
+}
