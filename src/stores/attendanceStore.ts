@@ -22,7 +22,7 @@ import type {
   GroupPhotoResult,
 } from '@/types/employees';
 
-type Tab = 'employees' | 'uploads' | 'logs';
+type Tab = 'employees' | 'uploads' | 'results' | 'logs';
 type UploadSubTab = 'groupphoto' | 'video';
 
 interface AttendanceState {
@@ -93,6 +93,8 @@ interface AttendanceState {
   setStartDate: (v: string) => void;
   setEndDate: (v: string) => void;
   fetchLogs: () => Promise<void>;
+  todayLogs: AttendanceLog[];
+  fetchTodayLogs: () => Promise<void>;
 }
 
 function toDateInput(date: Date) {
@@ -134,6 +136,7 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
     try {
       const res = await listEmployees();
       set({ employees: res.data });
+      await get().fetchTodayLogs();
     } catch {
       /* silent */
     } finally {
@@ -244,7 +247,11 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       fd.append('similarity_threshold', String(simThreshold));
       fd.append('confidence_threshold', String(confThreshold));
       const res = await markGroupPhotoAttendance(fd);
-      set({ groupPhotoResult: res.data });
+      set({
+        groupPhotoResult: res.data,
+        selectedAttSession: null,
+        activeTab: 'results',
+      });
       toast.success(
         `Marked ${res.data.attendance_logs.length} employee(s) present`,
       );
@@ -296,13 +303,16 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
         attSessions: [...res.data, ...s.attSessions],
         attUploads: [],
         selectedAttSession: res.data[0] ?? null,
+        groupPhotoResult: null,
+        activeTab: 'results',
       }));
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Processing failed');
     }
   },
 
-  setSelectedAttSession: (s) => set({ selectedAttSession: s }),
+  setSelectedAttSession: (s) =>
+    set({ selectedAttSession: s, groupPhotoResult: null }),
   setHistoryOpen: (v) => set({ historyOpen: v }),
 
   startDate: monthStart,
@@ -324,6 +334,17 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       );
     } finally {
       set({ logsLoading: false });
+    }
+  },
+
+  todayLogs: [],
+  fetchTodayLogs: async () => {
+    const todayStr = toDateInput(new Date());
+    try {
+      const res = await getAttendanceByDateRange(todayStr, todayStr);
+      set({ todayLogs: res.data });
+    } catch {
+      /* silent */
     }
   },
 }));

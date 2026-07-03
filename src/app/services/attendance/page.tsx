@@ -22,14 +22,17 @@ import {
   LogIn,
   LogOut,
   Eye,
+  FileImage,
 } from 'lucide-react';
 import {
   getEmployeePhotoUrl,
   getAnnotatedGroupPhotoUrl,
   getAttendanceVideoUrl,
+  getSessionAttendance,
 } from '@/lib/api/employees';
 import type { AttendanceVideoSession, AttendanceLog } from '@/types/employees';
 import { useAttendanceStore } from '@/stores/attendanceStore';
+import { convertHeicToJpeg, isHeicFile } from '@/lib/heicConverter';
 
 import { StatusBadge } from '@/components/services/shared/StatusBadge';
 
@@ -59,6 +62,18 @@ function formatDwell(seconds: number): string {
   return `${m}m ${s}s`;
 }
 
+function formatHours(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h === 0 && m === 0) {
+    return '< 1m';
+  }
+  if (h > 0) {
+    return `${h}h ${m}m`;
+  }
+  return `${m}m`;
+}
+
 function toDateInputValue(date: Date): string {
   return date.toISOString().split('T')[0];
 }
@@ -67,12 +82,13 @@ function toDateInputValue(date: Date): string {
 // Page tabs
 // ─────────────────────────────────────────────
 
-type Tab = 'employees' | 'uploads' | 'logs';
+type Tab = 'employees' | 'uploads' | 'results' | 'logs';
 type UploadSubTab = 'groupphoto' | 'video';
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'employees', label: 'Employees', icon: Users },
   { id: 'uploads', label: 'Attendance Uploads', icon: Upload },
+  { id: 'results', label: 'Results', icon: CheckCircle2 },
   { id: 'logs', label: 'Attendance Logs', icon: CalendarDays },
 ];
 
@@ -264,6 +280,7 @@ function EmployeesTab() {
     lastName,
     empCode,
     photoPreview,
+    photoFile,
     setEmployeeSearch,
     setDrawerOpen,
     setDeleteConfirm,
@@ -276,11 +293,18 @@ function EmployeesTab() {
     openEdit,
     saveEmployee,
     deleteEmployee,
+    todayLogs,
   } = useAttendanceStore();
 
   const { getRootProps: getPhotoRootProps, getInputProps: getPhotoInputProps } =
     useDropzone({
-      accept: { 'image/*': [] },
+      accept: {
+        'image/jpeg': ['.jpg', '.jpeg'],
+        'image/png': ['.png'],
+        'image/webp': ['.webp'],
+        'image/heic': ['.heic'],
+        'image/heif': ['.heif'],
+      },
       maxFiles: 1,
       onDrop: ([file]) => {
         if (!file) return;
@@ -346,6 +370,7 @@ function EmployeesTab() {
                 <th className="w-16 px-6 py-4">Photo</th>
                 <th className="px-6 py-4">Full Name</th>
                 <th className="px-6 py-4">Employee Code</th>
+                <th className="px-6 py-4">Hours Today</th>
                 <th className="px-6 py-4">Date Registered</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
@@ -377,6 +402,24 @@ function EmployeesTab() {
                   </td>
                   <td className="px-6 py-4 font-mono text-xs whitespace-nowrap text-[#60A5FA]">
                     {emp.employee_code}
+                  </td>
+                  <td className="px-6 py-4 text-xs whitespace-nowrap text-[#E8EDF5]">
+                    {(() => {
+                      const empLogs = todayLogs.filter(
+                        (log) => log.employee.id === emp.id,
+                      );
+                      if (empLogs.length === 0)
+                        return <span className="text-[#5A7A9A]">—</span>;
+                      const totalSeconds = empLogs.reduce(
+                        (sum, log) => sum + (log.dwell_time || 0),
+                        0,
+                      );
+                      return (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 font-semibold text-emerald-400">
+                          {formatHours(totalSeconds)}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-6 py-4 text-xs whitespace-nowrap text-[#5A7A9A]">
                     {formatDateOnly(emp.created_at)}
@@ -562,6 +605,7 @@ function AttendanceUploadsTab() {
     attSessions,
     fetchAttSessions,
     groupPhotoPreview,
+    groupPhoto,
     simThreshold,
     confThreshold,
     groupPhotoResult,
@@ -585,11 +629,28 @@ function AttendanceUploadsTab() {
     getRootProps: getGroupPhotoRootProps,
     getInputProps: getGroupPhotoInputProps,
   } = useDropzone({
-    accept: { 'image/*': [] },
+    accept: {
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'image/webp': ['.webp'],
+      'image/heic': ['.heic'],
+      'image/heif': ['.heif'],
+    },
     maxFiles: 1,
-    onDrop: ([file]) => {
+    onDrop: async ([file]) => {
       if (!file) return;
-      setGroupPhoto(file, URL.createObjectURL(file));
+
+      if (isHeicFile(file)) {
+        // HEIC is not renderable in Chrome/Firefox — convert to JPEG for preview only.
+        // The original file is still uploaded to the backend unchanged.
+        const converted = await convertHeicToJpeg(file);
+        const previewUrl = converted
+          ? URL.createObjectURL(converted)
+          : URL.createObjectURL(file); // fallback (Safari handles HEIC natively)
+        setGroupPhoto(file, previewUrl);
+      } else {
+        setGroupPhoto(file, URL.createObjectURL(file));
+      }
     },
   });
 
@@ -597,63 +658,42 @@ function AttendanceUploadsTab() {
     getRootProps: getAttVideoRootProps,
     getInputProps: getAttVideoInputProps,
   } = useDropzone({
-    accept: { 'video/*': [] },
+    accept: {
+      'video/mp4': ['.mp4'],
+      'video/quicktime': ['.mov'],
+      'video/x-msvideo': ['.avi'],
+      'video/x-matroska': ['.mkv'],
+    },
     maxFiles: 10,
     onDrop: async (files) => {
       await addAttUploads(files);
     },
   });
 
-  const triggerFetchHistory = async () => {
-    await fetchAttSessions();
-    setAttHistoryOpen(true);
-  };
-
-  const handleSelectAttSession = (session: AttendanceVideoSession) => {
-    setAttHistoryOpen(false);
-    setSelectedAttSession(session);
-  };
-
   return (
     <div className="space-y-5">
-      {/* Sub-tab pills & History button */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-2">
-          {(
-            [
-              { id: 'groupphoto', label: 'Group Photo' },
-              { id: 'video', label: 'Attendance Video' },
-            ] as { id: UploadSubTab; label: string }[]
-          ).map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setSubTab(id)}
-              className={cn(
-                'rounded-full border px-4 py-1.5 text-xs font-medium transition-colors',
-                subTab === id
-                  ? 'border-[#1565C0] bg-[#1565C0]/20 text-[#60A5FA]'
-                  : 'border-[#1E3048] text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {subTab === 'video' && (
+      {/* Sub-tab pills */}
+      <div className="flex gap-2">
+        {(
+          [
+            { id: 'groupphoto', label: 'Group Photo', icon: Camera },
+            { id: 'video', label: 'Attendance Video', icon: Video },
+          ] as { id: UploadSubTab; label: string; icon: React.ElementType }[]
+        ).map(({ id, label, icon: Icon }) => (
           <button
-            onClick={triggerFetchHistory}
-            className="relative flex items-center gap-2 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs font-medium text-[#5A7A9A] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-          >
-            <History className="h-3.5 w-3.5" />
-            History
-            {attSessions.length > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#1565C0] text-[9px] font-bold text-white">
-                {attSessions.length > 99 ? '99+' : attSessions.length}
-              </span>
+            key={id}
+            onClick={() => setSubTab(id)}
+            className={cn(
+              'flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-medium transition-colors',
+              subTab === id
+                ? 'border-[#1565C0] bg-[#1565C0]/20 text-[#60A5FA]'
+                : 'border-[#1E3048] text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]',
             )}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            {label}
           </button>
-        )}
+        ))}
       </div>
 
       {/* ── Group Photo Upload ── */}
@@ -662,7 +702,10 @@ function AttendanceUploadsTab() {
           <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
             <div
               {...getGroupPhotoRootProps()}
-              className="flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-[#1E3048] p-6 transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20"
+              className={cn(
+                'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-[#1E3048] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20',
+                groupPhotoPreview ? 'p-3' : 'p-6',
+              )}
             >
               <input {...getGroupPhotoInputProps()} />
               {groupPhotoPreview ? (
@@ -670,7 +713,8 @@ function AttendanceUploadsTab() {
                 <img
                   src={groupPhotoPreview}
                   alt="Group photo preview"
-                  className="max-h-48 rounded-lg object-contain"
+                  className="max-h-[420px] w-full rounded-lg object-contain"
+                  style={{ maxHeight: '420px' }}
                 />
               ) : (
                 <>
@@ -679,7 +723,7 @@ function AttendanceUploadsTab() {
                     Upload a group photo to mark attendance
                   </p>
                   <p className="text-xs text-[#5A7A9A]/60">
-                    Click or drag an image file (JPG, PNG)
+                    Click or drag an image file (JPG, PNG, HEIC)
                   </p>
                 </>
               )}
@@ -738,59 +782,6 @@ function AttendanceUploadsTab() {
               Mark Attendance
             </button>
           </div>
-
-          {/* Group Photo Results */}
-          {groupPhotoResult && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
-                <p className="mb-3 text-xs font-semibold text-[#5A7A9A]">
-                  Annotated Photo
-                </p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={getAnnotatedGroupPhotoUrl(
-                    groupPhotoResult.annotated_image_path,
-                  )}
-                  alt="Annotated group photo"
-                  className="w-full rounded-lg object-contain"
-                />
-              </div>
-              <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
-                <div className="border-b border-[#1E3048] px-5 py-3">
-                  <p className="text-xs font-semibold text-[#5A7A9A]">
-                    Marked Present ({groupPhotoResult.attendance_logs.length})
-                  </p>
-                </div>
-                <div className="divide-y divide-[#1E3048]">
-                  {groupPhotoResult.attendance_logs.length === 0 ? (
-                    <div className="p-5 text-center text-xs text-[#5A7A9A]">
-                      No employees recognized. Adjust similarity/confidence
-                      thresholds and try again.
-                    </div>
-                  ) : (
-                    groupPhotoResult.attendance_logs.map(
-                      (log: AttendanceLog) => (
-                        <div
-                          key={log.id}
-                          className="flex items-center gap-3 px-5 py-3"
-                        >
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                          <div>
-                            <p className="text-sm font-semibold text-[#E8EDF5]">
-                              {log.employee.first_name} {log.employee.last_name}
-                            </p>
-                            <p className="text-[10px] text-[#5A7A9A]">
-                              {log.employee.employee_code}
-                            </p>
-                          </div>
-                        </div>
-                      ),
-                    )
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -855,97 +846,395 @@ function AttendanceUploadsTab() {
               )}
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
-          {/* Selected Session Results */}
-          {selectedAttSession && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-[#E8EDF5]">
-                    {selectedAttSession.video_name}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <StatusBadge status={selectedAttSession.status} />
-                    <span className="text-[10px] text-[#5A7A9A]">
-                      {formatDate(selectedAttSession.created_at)}
-                    </span>
+// ─────────────────────────────────────────────
+// MEDIA MODAL
+// ─────────────────────────────────────────────
+
+interface MediaModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  type: 'image' | 'video';
+  src: string;
+}
+
+function MediaModal({ isOpen, onClose, title, type, src }: MediaModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      {/* Modal Content */}
+      <div className="relative z-10 flex w-full max-w-4xl flex-col rounded-xl border border-[#1E3048] bg-[#0D1628] shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-4">
+          <p className="text-sm font-semibold text-[#E8EDF5]">{title}</p>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {/* Body */}
+        <div className="flex items-center justify-center p-6">
+          {type === 'image' ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={src}
+              alt={title}
+              className="max-h-[70vh] w-full rounded-lg object-contain"
+            />
+          ) : (
+            <video
+              controls
+              autoPlay
+              className="max-h-[70vh] w-full rounded-lg"
+              src={src}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// RESULTS TAB
+// ─────────────────────────────────────────────
+
+function ResultsTab() {
+  const {
+    groupPhotoResult,
+    selectedAttSession,
+    setSelectedAttSession,
+    attSessions,
+  } = useAttendanceStore();
+
+  const latestSession = selectedAttSession
+    ? attSessions.find((s) => s.id === selectedAttSession.id) ||
+      selectedAttSession
+    : null;
+
+  // null = loading, [] = loaded-but-empty, populated array = loaded
+  const [sessionLogs, setSessionLogs] = useState<AttendanceLog[] | null>(null);
+  const logsLoading = sessionLogs === null;
+  const [mediaModalOpen, setMediaModalOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      if (latestSession && latestSession.status === 'completed') {
+        setSessionLogs(null); // enter loading state
+        try {
+          const res = await getSessionAttendance(latestSession.id);
+          if (!cancelled) setSessionLogs(res?.data || []);
+        } catch {
+          if (!cancelled) setSessionLogs([]);
+        }
+      } else {
+        if (!cancelled) setSessionLogs([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [latestSession]);
+
+  const modalTitle = latestSession
+    ? latestSession.video_name
+    : 'Annotated Group Photo';
+  const modalType = latestSession ? 'video' : 'image';
+  const modalSrc = latestSession
+    ? latestSession.output_video_path
+      ? getAttendanceVideoUrl(latestSession.output_video_path)
+      : ''
+    : groupPhotoResult
+      ? getAnnotatedGroupPhotoUrl(groupPhotoResult.annotated_image_path)
+      : '';
+
+  if (groupPhotoResult) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between border-b border-[#1E3048] pb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[#E8EDF5]">
+              Group Photo Analysis Results
+            </h3>
+            <p className="mt-0.5 text-xs text-[#5A7A9A]">
+              Marked present from the group photo
+            </p>
+          </div>
+          <button
+            onClick={() => setMediaModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-2 text-xs font-semibold text-[#E8EDF5] hover:bg-[#1E3048]"
+          >
+            <Eye className="h-4 w-4" /> View Annotated Photo
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
+          <div className="border-b border-[#1E3048] px-5 py-3">
+            <p className="text-xs font-semibold text-[#5A7A9A]">
+              Marked Present ({groupPhotoResult.attendance_logs.length})
+            </p>
+          </div>
+          <div className="divide-y divide-[#1E3048]">
+            {groupPhotoResult.attendance_logs.length === 0 ? (
+              <div className="p-5 text-center text-xs text-[#5A7A9A]">
+                No employees recognized. Try adjusting similarity/confidence
+                settings and upload again.
+              </div>
+            ) : (
+              groupPhotoResult.attendance_logs.map((log: AttendanceLog) => (
+                <div key={log.id} className="flex items-center gap-3 px-5 py-3">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                  <div>
+                    <p className="text-sm font-semibold text-[#E8EDF5]">
+                      {log.employee.first_name} {log.employee.last_name}
+                    </p>
+                    <p className="text-[10px] text-[#5A7A9A]">
+                      {log.employee.employee_code}
+                    </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedAttSession(null)}
-                  className="ml-auto rounded-lg p-1.5 text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        <MediaModal
+          isOpen={mediaModalOpen}
+          onClose={() => setMediaModalOpen(false)}
+          title={modalTitle}
+          type={modalType}
+          src={modalSrc}
+        />
+      </div>
+    );
+  }
+
+  if (latestSession) {
+    const isFailed = latestSession.status === 'failed';
+    const isCompleted = latestSession.status === 'completed';
+
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between border-b border-[#1E3048] pb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-[#E8EDF5]">
+              {latestSession.video_name}
+            </h3>
+            <div className="mt-1 flex items-center gap-2">
+              <StatusBadge status={latestSession.status} />
+              <span className="text-[10px] text-[#5A7A9A]">
+                {formatDate(latestSession.created_at)}
+              </span>
+            </div>
+          </div>
+          {isCompleted && latestSession.output_video_path && (
+            <button
+              onClick={() => setMediaModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-2 text-xs font-semibold text-[#E8EDF5] hover:bg-[#1E3048]"
+            >
+              <Eye className="h-4 w-4" /> Watch Annotated Video
+            </button>
+          )}
+        </div>
+
+        {isCompleted ? (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard
+                label="Unique Registered"
+                value={latestSession.unique_person_count}
+                icon={Users}
+                color="blue"
+              />
+              <StatCard
+                label="Total Detections"
+                value={latestSession.total_person_count}
+                icon={Eye}
+                color="purple"
+              />
+              <StatCard
+                label="Entries logged"
+                value={latestSession.entry_count}
+                icon={LogIn}
+                color="green"
+              />
+              <StatCard
+                label="Exits logged"
+                value={latestSession.exit_count}
+                icon={LogOut}
+                color="amber"
+              />
+            </div>
+
+            <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
+              <div className="border-b border-[#1E3048] px-5 py-3">
+                <p className="text-xs font-semibold text-[#5A7A9A]">
+                  Session Attendance Logs ({sessionLogs?.length ?? 0})
+                </p>
               </div>
-
-              {selectedAttSession.status === 'completed' && (
-                <>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <StatCard
-                      label="Unique Registered"
-                      value={selectedAttSession.unique_person_count}
-                      icon={Users}
-                      color="blue"
-                    />
-                    <StatCard
-                      label="Total Detections"
-                      value={selectedAttSession.total_person_count}
-                      icon={Eye}
-                      color="purple"
-                    />
-                    <StatCard
-                      label="Entries logged"
-                      value={selectedAttSession.entry_count}
-                      icon={LogIn}
-                      color="green"
-                    />
-                    <StatCard
-                      label="Exits logged"
-                      value={selectedAttSession.exit_count}
-                      icon={LogOut}
-                      color="amber"
-                    />
-                  </div>
-                  {selectedAttSession.output_video_path && (
-                    <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                      <p className="mb-3 text-xs font-semibold text-[#5A7A9A]">
-                        Annotated Attendance Video
-                      </p>
-                      <video
-                        controls
-                        className="w-full rounded-lg"
-                        src={getAttendanceVideoUrl(selectedAttSession.id)}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
-
-              {(selectedAttSession.status === 'pending' ||
-                selectedAttSession.status === 'processing') && (
-                <div className="flex h-32 flex-col items-center justify-center gap-3 rounded-xl border border-[#1E3048] bg-[#0D1628]">
-                  <Loader2 className="h-6 w-6 animate-spin text-[#5A7A9A]" />
-                  <p className="text-sm text-[#5A7A9A]">
-                    Processing in background…
-                  </p>
+              {logsLoading ? (
+                <div className="flex h-32 items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
+                </div>
+              ) : sessionLogs.length === 0 ? (
+                <div className="p-5 text-center text-xs text-[#5A7A9A]">
+                  No employees detected in this session.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-left text-xs text-[#E8EDF5]">
+                    <thead>
+                      <tr className="border-b border-[#1E3048] bg-[#0A0F1E]/50 font-semibold text-[#5A7A9A]">
+                        <th className="px-5 py-3">Photo</th>
+                        <th className="px-5 py-3">Full Name</th>
+                        <th className="px-5 py-3">Code</th>
+                        <th className="px-5 py-3">First Seen</th>
+                        <th className="px-5 py-3">Last Seen</th>
+                        <th className="px-5 py-3">Dwell Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1E3048]">
+                      {sessionLogs.map((log) => (
+                        <tr
+                          key={log.id}
+                          className="transition-colors hover:bg-[#1E3048]/20"
+                        >
+                          <td className="px-5 py-2">
+                            <div className="h-8 w-8 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E]">
+                              {log.employee.photo_path ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={getEmployeePhotoUrl(
+                                    log.employee.photo_path,
+                                  )}
+                                  alt="Employee"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full items-center justify-center">
+                                  <UserCircle2 className="h-5 w-5 text-[#5A7A9A]" />
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3 font-semibold">
+                            {log.employee.first_name} {log.employee.last_name}
+                          </td>
+                          <td className="px-5 py-3 font-mono text-[#60A5FA]">
+                            {log.employee.employee_code}
+                          </td>
+                          <td className="px-5 py-3">
+                            {formatDate(log.employee_entry_timestamp)}
+                          </td>
+                          <td className="px-5 py-3">
+                            {formatDate(log.employee_exit_timestamp)}
+                          </td>
+                          <td className="px-5 py-3 text-[#60A5FA]">
+                            {formatDwell(log.dwell_time)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
-          )}
+          </>
+        ) : isFailed ? (
+          <div className="flex h-52 flex-col items-center justify-center gap-3 rounded-xl border border-[#1E3048] bg-[#0D1628] p-6 text-center">
+            <X className="h-12 w-12 text-red-500/50" />
+            <h4 className="text-sm font-semibold text-[#E8EDF5]">
+              Analysis Session Failed
+            </h4>
+            <p className="max-w-sm text-xs text-[#5A7A9A]">
+              An error occurred during video analysis. Please check that the
+              footage is formatted correctly and upload again.
+            </p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-[#1E3048] bg-[#0D1628] p-8 text-center">
+            {/* Radar Animation */}
+            <div className="relative mb-6 flex h-16 w-16 items-center justify-center">
+              <div className="absolute inset-0 animate-ping rounded-full bg-blue-500/20" />
+              <div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent border-t-blue-500" />
+              <Users className="h-6 w-6 text-blue-400" />
+            </div>
 
-          {/* Video History Drawer */}
-          <HistoryDrawer
-            open={attHistoryOpen}
-            sessions={attSessions}
-            loading={false}
-            onClose={() => setAttHistoryOpen(false)}
-            onRefresh={fetchAttSessions}
-            onSelectSession={handleSelectAttSession}
-            title="Attendance Sessions"
-          />
-        </div>
-      )}
+            <h4 className="text-sm font-semibold text-[#E8EDF5]">
+              Analyzing Attendance Footage
+            </h4>
+            <p className="mt-1.5 max-w-sm text-xs text-[#5A7A9A]">
+              Our computer vision pipeline is currently scanning video frames,
+              matching employee face templates, and recording crossing events.
+            </p>
+
+            {/* Pipeline progress steps timeline */}
+            <div className="mt-8 w-full max-w-xs space-y-3.5 border-t border-[#1E3048]/50 pt-6 text-left">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                <span className="text-xs font-medium text-[#E8EDF5]">
+                  Video uploaded &amp; queued
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-[#60A5FA]" />
+                <span className="text-xs font-medium text-[#E8EDF5]">
+                  Running facial recognition pipelines
+                </span>
+              </div>
+              <div className="flex items-center gap-3 pl-7">
+                <span className="text-[10px] text-[#5A7A9A]">
+                  Tracking gate crossings &amp; timestamps
+                </span>
+              </div>
+              <div className="flex items-center gap-3 pl-7">
+                <span className="text-[10px] text-[#5A7A9A]">
+                  Computing dwell time hours logged
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <MediaModal
+          isOpen={mediaModalOpen}
+          onClose={() => setMediaModalOpen(false)}
+          title={modalTitle}
+          type={modalType}
+          src={modalSrc}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-60 flex-col items-center justify-center gap-3 rounded-xl border border-[#1E3048] bg-[#0D1628] p-6 text-center">
+      <CheckCircle2 className="h-12 w-12 text-[#5A7A9A]/30" />
+      <p className="text-sm font-semibold text-[#E8EDF5]">
+        No Analysis Results Loaded
+      </p>
+      <p className="max-w-md text-xs text-[#5A7A9A]">
+        Upload and process a Group Photo or Attendance Video in the **Attendance
+        Uploads** tab, or load a session from the **History** to view detailed
+        results.
+      </p>
     </div>
   );
 }
@@ -1171,6 +1460,10 @@ export default function AttendancePage() {
     setActiveTab: setTab,
     attSessions,
     fetchAttSessions,
+    historyOpen: attHistoryOpen,
+    setHistoryOpen: setAttHistoryOpen,
+    selectedAttSession,
+    setSelectedAttSession,
   } = useAttendanceStore();
 
   // Poll active video sessions
@@ -1187,14 +1480,52 @@ export default function AttendancePage() {
     return () => clearInterval(timer);
   }, [attSessions, fetchAttSessions]);
 
+  // Auto-select active processing session on mount
+  useEffect(() => {
+    if (!selectedAttSession && attSessions.length > 0) {
+      const active = attSessions.find(
+        (s) => s.status === 'pending' || s.status === 'processing',
+      );
+      if (active) {
+        setSelectedAttSession(active);
+        setTab('results');
+      }
+    }
+  }, [attSessions, selectedAttSession, setSelectedAttSession, setTab]);
+
+  const toggleHistory = () => {
+    fetchAttSessions();
+    setAttHistoryOpen(!attHistoryOpen);
+  };
+
+  const handleSelectAttSession = (session: AttendanceVideoSession) => {
+    setAttHistoryOpen(false);
+    setSelectedAttSession(session);
+    setTab('results');
+  };
+
   return (
     <div className="max-w-6xl space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-[#5A7A9A]">
-          Manage the employee directory database, upload single or team check-in
-          assets, and review logs.
-        </p>
+        <div>
+          <h1 className="text-2xl font-bold text-[#E8EDF5]">Attendance</h1>
+          <p className="mt-1 text-sm text-[#5A7A9A]">
+            Manage the employee directory database, upload single or team
+            check-in assets, and review logs.
+          </p>
+        </div>
+        <button
+          onClick={toggleHistory}
+          className="relative flex shrink-0 items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+        >
+          <History className="h-3.5 w-3.5" /> History
+          {attSessions.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#1565C0] text-[9px] font-bold text-white">
+              {attSessions.length > 99 ? '99+' : attSessions.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Tab Bar */}
@@ -1219,7 +1550,19 @@ export default function AttendancePage() {
       {/* Tab Contents */}
       {tab === 'employees' && <EmployeesTab />}
       {tab === 'uploads' && <AttendanceUploadsTab />}
+      {tab === 'results' && <ResultsTab />}
       {tab === 'logs' && <AttendanceLogsTab />}
+
+      {/* Video History Drawer */}
+      <HistoryDrawer
+        open={attHistoryOpen}
+        sessions={attSessions}
+        loading={false}
+        onClose={() => setAttHistoryOpen(false)}
+        onRefresh={fetchAttSessions}
+        onSelectSession={handleSelectAttSession}
+        title="Attendance Sessions"
+      />
     </div>
   );
 }

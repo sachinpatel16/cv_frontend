@@ -1001,9 +1001,16 @@ function HistoryDrawer() {
               <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
             </div>
           ) : history.length === 0 ? (
-            <div className="flex h-40 flex-col items-center justify-center gap-3">
-              <History className="h-8 w-8 text-[#5A7A9A]/30" />
-              <p className="text-sm text-[#5A7A9A]">No search history yet</p>
+            <div className="flex h-40 flex-col items-center justify-center gap-3 px-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#1E3048] bg-[#0D1628]">
+                <History className="h-6 w-6 text-[#5A7A9A]/40" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#E8EDF5]">No History</p>
+                <p className="mt-1 text-xs text-[#5A7A9A]">
+                  There is no history of any analysis done.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-[#1E3048]">
@@ -1278,8 +1285,6 @@ function ResultsTab() {
           onClose={() => setMatchPreviewIndex(null)}
         />
       )}
-
-      <HistoryDrawer />
     </div>
   );
 }
@@ -1289,6 +1294,7 @@ export default function PersonSearchPage() {
   const activeTab = usePersonSearchStore((s) => s.activeTab);
   const setActiveTab = usePersonSearchStore((s) => s.setActiveTab);
   const loadHistory = usePersonSearchStore((s) => s.loadHistory);
+  const historyOpen = usePersonSearchStore((s) => s.historyOpen);
   const setHistoryOpen = usePersonSearchStore((s) => s.setHistoryOpen);
   const selectedSearchMediaIds = usePersonSearchStore(
     (s) => s.selectedSearchMediaIds,
@@ -1314,7 +1320,7 @@ export default function PersonSearchPage() {
         <button
           onClick={() => {
             loadHistory();
-            setHistoryOpen(true);
+            setHistoryOpen(!historyOpen);
           }}
           className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
         >
@@ -1344,6 +1350,8 @@ export default function PersonSearchPage() {
       {activeTab === 'library' && <LibraryTab />}
       {activeTab === 'search' && <SearchTab />}
       {activeTab === 'results' && <ResultsTab />}
+
+      <HistoryDrawer />
     </div>
   );
 }
