@@ -30,10 +30,11 @@ interface PersonSearchState {
   uploading: boolean;
   selectedIds: string[];
   deleteAllOpen: boolean;
-  fetchMedia: () => Promise<void>;
+  fetchMedia: (silent?: boolean) => Promise<void>;
   addMedia: (files: File[]) => Promise<void>;
   removeMedia: (id: string) => Promise<void>;
   bulkRemoveMedia: () => Promise<void>;
+  bulkDeleteMedia: () => Promise<void>;
   toggleSelect: (id: string) => void;
   clearSelection: () => void;
   setDeleteAllOpen: (v: boolean) => void;
@@ -44,10 +45,14 @@ interface PersonSearchState {
   similarity: number;
   maxResults: number;
   searching: boolean;
+  selectedSearchMediaIds: string[];
   setSelfie: (file: File | null, preview: string | null) => void;
   setSimilarity: (v: number) => void;
   setMaxResults: (v: number) => void;
-  runSearch: () => Promise<void>;
+  setSelectedSearchMediaIds: (
+    ids: string[] | ((prev: string[]) => string[]),
+  ) => void;
+  runSearch: (selectedMediaIds?: string[]) => Promise<void>;
 
   // Results
   session: SearchSession | null;
@@ -70,28 +75,60 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
   selectedIds: [],
   deleteAllOpen: false,
 
-  fetchMedia: async () => {
-    set({ mediaLoading: true });
+  fetchMedia: async (silent = false) => {
+    if (!silent) set({ mediaLoading: true });
     try {
       const res = await listMedia();
-      set({ media: res.data });
+      const currentMedia = get().media;
+      const hasChanged =
+        currentMedia.length !== res.data.length ||
+        res.data.some((newItem, index) => {
+          const currentItem = currentMedia[index];
+          return (
+            !currentItem ||
+            currentItem.id !== newItem.id ||
+            currentItem.status !== newItem.status ||
+            currentItem.filepath !== newItem.filepath
+          );
+        });
+
+      if (hasChanged) {
+        set({ media: res.data });
+      }
     } catch {
       /* silent */
     } finally {
-      set({ mediaLoading: false });
+      if (!silent) set({ mediaLoading: false });
     }
   },
 
   addMedia: async (files) => {
     set({ uploading: true });
-    // Determine media type from first file mime
-    const mediaType: 'photo' | 'video' = files[0]?.type.startsWith('video')
-      ? 'video'
-      : 'photo';
     try {
-      const res = await uploadMedia(files, mediaType);
-      toast.success(`Uploaded ${res.data.length} file(s)`);
-      set((s) => ({ media: [...res.data, ...s.media] }));
+      const videos = files.filter((f) => f.type.startsWith('video'));
+      const photos = files.filter((f) => !f.type.startsWith('video'));
+
+      const promises: Promise<any>[] = [];
+      if (videos.length > 0) {
+        promises.push(uploadMedia(videos, 'video'));
+      }
+      if (photos.length > 0) {
+        promises.push(uploadMedia(photos, 'photo'));
+      }
+
+      const results = await Promise.all(promises);
+      const allUploaded = results.flatMap((res) => res.data);
+
+      toast.success(`Uploaded ${allUploaded.length} file(s)`);
+      set((s) => {
+        const merged = [...s.media];
+        allUploaded.forEach((item) => {
+          if (!merged.some((e) => e.id === item.id)) {
+            merged.unshift(item);
+          }
+        });
+        return { media: merged };
+      });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Upload failed');
     } finally {
@@ -113,17 +150,22 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
 
   bulkRemoveMedia: async () => {
     const { selectedIds } = get();
+    if (selectedIds.length === 0) return;
     try {
-      await bulkDeleteMedia();
+      await Promise.all(selectedIds.map((id) => deleteMedia(id)));
       toast.success(`Deleted ${selectedIds.length} item(s)`);
       set((s) => ({
-        media: s.media.filter((m) => !s.selectedIds.includes(m.id)),
+        media: s.media.filter((m) => !selectedIds.includes(m.id)),
         selectedIds: [],
         deleteAllOpen: false,
       }));
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Bulk delete failed');
     }
+  },
+
+  bulkDeleteMedia: async () => {
+    await bulkDeleteMedia();
   },
 
   toggleSelect: (id) =>
@@ -140,13 +182,19 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
   similarity: 0.6,
   maxResults: 20,
   searching: false,
+  selectedSearchMediaIds: [],
 
   setSelfie: (file, preview) =>
     set({ selfieFile: file, selfiePreview: preview }),
   setSimilarity: (v) => set({ similarity: v }),
   setMaxResults: (v) => set({ maxResults: v }),
+  setSelectedSearchMediaIds: (ids) =>
+    set((s) => ({
+      selectedSearchMediaIds:
+        typeof ids === 'function' ? ids(s.selectedSearchMediaIds) : ids,
+    })),
 
-  runSearch: async () => {
+  runSearch: async (selectedMediaIds) => {
     const { selfieFile, media, similarity } = get();
     if (!selfieFile || media.length === 0) {
       toast.error('Upload a selfie and at least one media source');
@@ -154,26 +202,21 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
     }
     set({ searching: true });
     try {
-      const videoMedia = media.filter((m) => m.media_type === 'video');
-      let session: SearchSession | null = null;
+      const res = await searchBySelfie(selfieFile, similarity);
+      const session = res.data;
       let matches: SearchMatch[] = [];
-
-      if (videoMedia.length > 0) {
-        // Search the first video
-        const res = await searchVideo(selfieFile, videoMedia[0].id, similarity);
-        session = res.data;
-        if (session?.id) {
-          const mr = await getSessionMatches(session.id);
-          matches = mr.data;
-        }
-      } else {
-        const res = await searchBySelfie(selfieFile, similarity);
-        session = res.data;
-        if (session?.id) {
-          const mr = await getSessionMatches(session.id);
-          matches = mr.data;
-        }
+      if (session?.id) {
+        const mr = await getSessionMatches(session.id);
+        matches = mr.data;
       }
+
+      // Filter matches by selected media IDs if any are specified
+      if (selectedMediaIds && selectedMediaIds.length > 0) {
+        matches = matches.filter((m) =>
+          selectedMediaIds.includes(m.media_source.id),
+        );
+      }
+
       set({ session, matches, activeTab: 'results' });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Search failed');
@@ -192,7 +235,7 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
     set({ historyLoading: true });
     try {
       const res = await getSessionHistory();
-      set({ history: res.data, historyOpen: true });
+      set({ history: res.data });
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : 'Failed to load history',

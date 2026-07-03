@@ -7,7 +7,7 @@ import { Bell } from 'lucide-react';
 const BREADCRUMB_MAP: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/investigations/new': 'New Investigation',
-  '/services/object-counting': 'Object Counting',
+  '/services/object-count': 'Object Counting',
   '/services/activity-detection': 'Activity Detection',
   '/services/activity-detection/activity': 'Human Activity Detection',
   '/services/person-search': 'Person Search',

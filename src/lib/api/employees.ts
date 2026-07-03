@@ -239,16 +239,19 @@ export async function getAttendanceSessionDetails(
 // ── Media URLs ──
 
 /** Returns the streaming URL for an annotated attendance video */
-export function getAttendanceVideoUrl(sessionId: string): string {
-  return `${BACKEND_URL}/api/v1/employees/attendance/video/sessions/${sessionId}/video`;
+export function getAttendanceVideoUrl(outputVideoPath: string): string {
+  const normalized = outputVideoPath.replace(/\\/g, '/');
+  return `${BACKEND_URL}/${normalized}`;
 }
 
 /** Returns the display URL for an employee profile photo */
 export function getEmployeePhotoUrl(photoPath: string): string {
-  return `${BACKEND_URL}/${photoPath}`;
+  const normalized = photoPath.replace(/\\/g, '/');
+  return `${BACKEND_URL}/${normalized}`;
 }
 
 /** Returns the display URL for an annotated group photo */
 export function getAnnotatedGroupPhotoUrl(imagePath: string): string {
-  return `${BACKEND_URL}/${imagePath}`;
+  const normalized = imagePath.replace(/\\/g, '/');
+  return `${BACKEND_URL}/${normalized}`;
 }

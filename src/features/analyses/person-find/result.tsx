@@ -373,7 +373,7 @@ export default function PersonFindResult({ sessionId }: ResultComponentProps) {
           {/* History trigger */}
           <button
             onClick={() => {
-              setHistoryOpen(true);
+              setHistoryOpen(!historyOpen);
               fetchHistory();
             }}
             className="relative flex items-center gap-2 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3 py-2 text-xs font-medium text-[#5A7A9A] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048] hover:text-[#E8EDF5]"
@@ -925,10 +925,10 @@ export default function PersonFindResult({ sessionId }: ResultComponentProps) {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-[#E8EDF5]">
-                    No searches yet
+                    No History
                   </p>
-                  <p className="mt-0.5 text-xs text-[#5A7A9A]">
-                    Your past searches will appear here.
+                  <p className="mt-1 text-xs text-[#5A7A9A]">
+                    There is no history of any analysis done.
                   </p>
                 </div>
               </div>

@@ -28,6 +28,7 @@ import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { usePersonSearchStore } from '@/stores/personSearchStore';
+import { ApiError } from '@/types/api';
 import { StatusBadge } from '@/components/services/shared/StatusBadge';
 import type { MediaSource, SearchMatch } from '@/types/peoplefind';
 
@@ -72,10 +73,12 @@ function formatDate(iso: string) {
 // ── Delete All Modal ──
 function DeleteAllModal({
   count,
+  isSelection,
   onConfirm,
   onCancel,
 }: {
   count: number;
+  isSelection: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -93,7 +96,7 @@ function DeleteAllModal({
             </div>
             <div>
               <h2 className="text-base font-semibold text-[#E8EDF5]">
-                Delete All Media?
+                {isSelection ? 'Delete Selected Media?' : 'Delete All Media?'}
               </h2>
               <p className="mt-1 text-sm leading-relaxed text-[#5A7A9A]">
                 You are about to permanently delete{' '}
@@ -111,7 +114,9 @@ function DeleteAllModal({
           <div className="space-y-1 rounded-lg border border-red-500/15 bg-red-500/5 px-4 py-3 text-xs text-red-300/80">
             <p className="flex items-center gap-1.5">
               <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-red-400" />
-              All indexed photos and videos will be removed
+              {isSelection
+                ? 'Selected indexed photos and videos will be removed'
+                : 'All indexed photos and videos will be removed'}
             </p>
             <p className="flex items-center gap-1.5">
               <span className="inline-block h-1 w-1 shrink-0 rounded-full bg-red-400" />
@@ -133,7 +138,7 @@ function DeleteAllModal({
               onClick={onConfirm}
               className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-500"
             >
-              Delete All Media
+              {isSelection ? 'Delete Selected' : 'Delete All Media'}
             </button>
           </div>
         </div>
@@ -224,6 +229,114 @@ function MediaPreviewCarousel({
   );
 }
 
+// ── MatchPreviewCarousel ──
+function MatchPreviewCarousel({
+  matches,
+  startIndex,
+  onClose,
+}: {
+  matches: SearchMatch[];
+  startIndex: number;
+  onClose: () => void;
+}) {
+  const [current, setCurrent] = useState(startIndex);
+  const match = matches[current];
+  if (!match || !match.media_source) return null;
+  const isVideo = match.media_source.media_type === 'video';
+  const src = `${BACKEND_URL}/${match.media_source.filepath}`;
+
+  const handlePrev = () => {
+    if (current > 0) setCurrent(current - 1);
+  };
+
+  const handleNext = () => {
+    if (current < matches.length - 1) setCurrent(current + 1);
+  };
+
+  return (
+    <div
+      className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm duration-200"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 z-50 rounded-lg bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+      >
+        <X className="h-6 w-6" />
+      </button>
+
+      {current > 0 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePrev();
+          }}
+          className="absolute left-4 z-50 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      )}
+
+      <div
+        className="relative max-h-[80vh] max-w-4xl overflow-hidden rounded-xl border border-[#1E3048] bg-black shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {isVideo ? (
+          <video
+            src={`${src}#t=${match.timestamp ?? 0.1}`}
+            controls
+            autoPlay
+            className="max-h-[75vh] w-auto rounded-t-xl"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={match.media_source.filename}
+            className="max-h-[75vh] w-auto rounded-t-xl object-contain"
+          />
+        )}
+
+        {/* Similarity percentage badge inside preview */}
+        <span
+          className={cn(
+            'absolute top-4 left-4 z-50 rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-bold shadow-lg backdrop-blur-sm',
+            similarityColor(match.similarity),
+          )}
+        >
+          Similarity: {(match.similarity * 100).toFixed(1)}%
+        </span>
+
+        <div className="border-t border-[#1E3048] bg-[#0A0F1E] px-5 py-3 text-center text-xs text-white">
+          <p className="truncate text-sm font-semibold text-[#E8EDF5]">
+            {match.media_source.filename}
+          </p>
+          {match.timestamp != null && (
+            <p className="mt-1 font-mono text-[11px] text-[#5A7A9A]">
+              Timestamp: {formatTimestamp(match.timestamp)}
+            </p>
+          )}
+          <p className="mt-1 text-[10px] text-[#5A7A9A]/60">
+            Match {current + 1} of {matches.length}
+          </p>
+        </div>
+      </div>
+
+      {current < matches.length - 1 && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleNext();
+          }}
+          className="absolute right-4 z-50 rounded-full bg-white/10 p-3 text-white transition-colors hover:bg-white/20"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Library Tab ──
 function LibraryTab() {
   const {
@@ -242,10 +355,27 @@ function LibraryTab() {
   } = usePersonSearchStore();
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [filterType, setFilterType] = useState<'all' | 'image' | 'video'>(
+    'all',
+  );
 
   useEffect(() => {
     fetchMedia();
   }, [fetchMedia]);
+
+  // Poll library media status every 12 seconds if any items are pending or processing
+  useEffect(() => {
+    const hasUnfinishedMedia = media.some(
+      (m) => m.status === 'pending' || m.status === 'processing',
+    );
+    if (!hasUnfinishedMedia) return;
+
+    const interval = setInterval(() => {
+      fetchMedia(true);
+    }, 12000);
+
+    return () => clearInterval(interval);
+  }, [media, fetchMedia]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop: async (files) => {
@@ -255,7 +385,13 @@ function LibraryTab() {
     },
   });
 
-  const previewable = media.filter((m) => m.status === 'completed');
+  const filteredMedia = media.filter((m) => {
+    if (filterType === 'all') return true;
+    if (filterType === 'image') return m.media_type === 'photo';
+    return m.media_type === 'video';
+  });
+
+  const previewable = filteredMedia.filter((m) => m.status === 'completed');
 
   return (
     <div className="space-y-5">
@@ -284,9 +420,32 @@ function LibraryTab() {
       {/* Media Grid Section */}
       <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
         <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-3">
-          <p className="text-xs font-semibold text-[#5A7A9A]">
-            Indexed Media ({media.length})
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-xs font-semibold text-[#5A7A9A]">
+              Indexed Media ({filteredMedia.length})
+            </p>
+            {/* Tab Selector */}
+            <div className="flex rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-0.5">
+              {(['all', 'image', 'video'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={cn(
+                    'rounded-md px-2.5 py-0.5 text-[10px] font-medium capitalize transition-colors',
+                    filterType === type
+                      ? 'bg-[#1565C0] text-white'
+                      : 'text-[#5A7A9A] hover:text-[#E8EDF5]',
+                  )}
+                >
+                  {type === 'image'
+                    ? 'Photos'
+                    : type === 'video'
+                      ? 'Videos'
+                      : 'All'}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex gap-2">
             {selectedIds.length > 0 && (
               <button
@@ -297,13 +456,13 @@ function LibraryTab() {
               </button>
             )}
             <button
-              onClick={fetchMedia}
+              onClick={() => fetchMedia()}
               className="rounded-md p-1.5 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
               title="Refresh"
             >
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
-            {media.length > 0 && (
+            {filteredMedia.length > 0 && (
               <button
                 onClick={() => setDeleteAllOpen(true)}
                 className="rounded-md p-1.5 text-red-400/60 transition-colors hover:bg-red-400/10 hover:text-red-400"
@@ -319,16 +478,16 @@ function LibraryTab() {
           <div className="flex h-40 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
           </div>
-        ) : media.length === 0 ? (
+        ) : filteredMedia.length === 0 ? (
           <div className="flex h-40 flex-col items-center justify-center gap-3">
             <ImageIcon className="h-10 w-10 text-[#5A7A9A]/30" />
             <p className="text-sm text-[#5A7A9A]">
-              No media in library yet. Upload photos or videos above.
+              No matching media in library.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {media.map((item) => {
+            {filteredMedia.map((item) => {
               const isSelected = selectedIds.includes(item.id);
               const previewIdx = previewable.findIndex((p) => p.id === item.id);
               return (
@@ -348,16 +507,30 @@ function LibraryTab() {
                       previewIdx !== -1 && setPreviewIndex(previewIdx)
                     }
                   >
-                    {item.media_type === 'photo' && item.filepath ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`${BACKEND_URL}/${item.filepath}`}
-                        alt={item.filename}
-                        className="h-full w-full object-cover"
-                      />
+                    {item.filepath ? (
+                      item.media_type === 'video' ? (
+                        <video
+                          src={`${BACKEND_URL}/${item.filepath}#t=0.5`}
+                          preload="metadata"
+                          muted
+                          playsInline
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`${BACKEND_URL}/${item.filepath}`}
+                          alt={item.filename}
+                          className="h-full w-full object-cover"
+                        />
+                      )
                     ) : (
                       <div className="flex h-full items-center justify-center">
-                        <Film className="h-6 w-6 text-[#5A7A9A]" />
+                        {item.media_type === 'video' ? (
+                          <Film className="h-6 w-6 text-[#5A7A9A]" />
+                        ) : (
+                          <ImageIcon className="h-6 w-6 text-[#5A7A9A]" />
+                        )}
                       </div>
                     )}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-all group-hover:bg-black/40">
@@ -406,8 +579,28 @@ function LibraryTab() {
       {/* Modals */}
       {deleteAllOpen && (
         <DeleteAllModal
-          count={media.length}
-          onConfirm={bulkRemoveMedia}
+          count={selectedIds.length > 0 ? selectedIds.length : media.length}
+          isSelection={selectedIds.length > 0}
+          onConfirm={
+            selectedIds.length > 0
+              ? bulkRemoveMedia
+              : async () => {
+                  const { bulkDeleteMedia } = usePersonSearchStore.getState();
+                  try {
+                    await bulkDeleteMedia();
+                    toast.success('All media deleted successfully');
+                    usePersonSearchStore.setState({
+                      media: [],
+                      selectedIds: [],
+                      deleteAllOpen: false,
+                    });
+                  } catch (err) {
+                    toast.error(
+                      err instanceof ApiError ? err.message : 'Delete failed',
+                    );
+                  }
+                }
+          }
           onCancel={() => setDeleteAllOpen(false)}
         />
       )}
@@ -435,7 +628,13 @@ function SearchTab() {
     setMaxResults,
     runSearch,
     media,
+    selectedSearchMediaIds,
+    setSelectedSearchMediaIds,
   } = usePersonSearchStore();
+
+  const [searchFilterType, setSearchFilterType] = useState<'image' | 'video'>(
+    'image',
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/*': [] },
@@ -449,114 +648,287 @@ function SearchTab() {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Selfie upload */}
-        <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-          <p className="text-sm font-semibold text-[#E8EDF5]">
-            Reference Selfie
-          </p>
-          <div
-            {...getRootProps()}
-            className={cn(
-              'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors',
-              isDragActive
-                ? 'border-[#1565C0] bg-[#1565C0]/5'
-                : 'border-[#1E3048] hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20',
-            )}
-          >
-            <input {...getInputProps()} />
-            {selfiePreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={selfiePreview}
-                alt="Selfie preview"
-                className="h-32 w-32 rounded-full border-4 border-[#1565C0]/40 object-cover shadow-xl"
-              />
-            ) : (
-              <>
-                <ScanFace className="h-10 w-10 text-[#5A7A9A]" />
-                <p className="text-sm text-[#5A7A9A]">
-                  Drop a clear face photo here
+        {/* Left Column: Selfie + Config */}
+        <div className="space-y-6">
+          {/* Selfie upload */}
+          <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+            <p className="text-sm font-semibold text-[#E8EDF5]">
+              Reference Selfie
+            </p>
+            <div
+              {...getRootProps()}
+              className={cn(
+                'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 transition-colors',
+                isDragActive
+                  ? 'border-[#1565C0] bg-[#1565C0]/5'
+                  : 'border-[#1E3048] hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20',
+              )}
+            >
+              <input {...getInputProps()} />
+              {selfiePreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selfiePreview}
+                  alt="Selfie preview"
+                  className="h-32 w-32 rounded-full border-4 border-[#1565C0]/40 object-cover shadow-xl"
+                />
+              ) : (
+                <>
+                  <ScanFace className="h-10 w-10 text-[#5A7A9A]" />
+                  <p className="text-sm text-[#5A7A9A]">
+                    Drop a clear face photo here
+                  </p>
+                </>
+              )}
+              {selfieFile && (
+                <p className="text-xs text-[#5A7A9A]/70">
+                  {selfieFile.name} · click to replace
                 </p>
-              </>
-            )}
-            {selfieFile && (
-              <p className="text-xs text-[#5A7A9A]/70">
-                {selfieFile.name} · click to replace
+              )}
+            </div>
+          </div>
+
+          {/* Config */}
+          <div className="space-y-5 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+            <p className="text-sm font-semibold text-[#E8EDF5]">
+              Search Configuration
+            </p>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-[#5A7A9A]">
+                  Similarity Threshold
+                </label>
+                <span className="text-xs font-bold text-[#60A5FA]">
+                  {(similarity * 100).toFixed(0)}%
+                </span>
+              </div>
+              <input
+                type="range"
+                min={0.4}
+                max={0.99}
+                step={0.01}
+                value={similarity}
+                onChange={(e) => setSimilarity(parseFloat(e.target.value))}
+                className="w-full accent-[#1565C0]"
+              />
+              <p className="mt-1 text-[10px] text-[#5A7A9A]">
+                Higher = stricter matching (default 60%)
               </p>
-            )}
+            </div>
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-[#5A7A9A]">
+                  Max Results
+                </label>
+                <span className="text-xs font-bold text-[#60A5FA]">
+                  {maxResults}
+                </span>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                value={maxResults}
+                onChange={(e) => setMaxResults(parseInt(e.target.value))}
+                className="w-full accent-[#1565C0]"
+              />
+            </div>
+            <div className="rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-3">
+              <p className="text-xs text-[#5A7A9A]">
+                Searching across{' '}
+                <span className="font-semibold text-[#E8EDF5]">
+                  {selectedSearchMediaIds.length > 0
+                    ? selectedSearchMediaIds.length
+                    : media.length}
+                </span>{' '}
+                media file{media.length !== 1 ? 's' : ''} in library.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Config */}
-        <div className="space-y-5 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-          <p className="text-sm font-semibold text-[#E8EDF5]">
-            Search Configuration
-          </p>
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-xs font-medium text-[#5A7A9A]">
-                Similarity Threshold
-              </label>
-              <span className="text-xs font-bold text-[#60A5FA]">
-                {(similarity * 100).toFixed(0)}%
-              </span>
+        {/* Right Column: Search Target Selection */}
+        <div className="flex flex-col space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+          <div className="flex items-center justify-between border-b border-[#1E3048] pb-3">
+            <div>
+              <p className="text-sm font-semibold text-[#E8EDF5]">
+                Search Targets
+              </p>
+              <p className="mt-0.5 text-xs text-[#5A7A9A]">
+                Search in specific files, or leave empty to search all media.
+              </p>
             </div>
-            <input
-              type="range"
-              min={0.4}
-              max={0.99}
-              step={0.01}
-              value={similarity}
-              onChange={(e) => setSimilarity(parseFloat(e.target.value))}
-              className="w-full accent-[#1565C0]"
-            />
-            <p className="mt-1 text-[10px] text-[#5A7A9A]">
-              Higher = stricter matching (default 60%)
-            </p>
-          </div>
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="text-xs font-medium text-[#5A7A9A]">
-                Max Results
-              </label>
-              <span className="text-xs font-bold text-[#60A5FA]">
-                {maxResults}
-              </span>
+            {/* Tab Selector */}
+            <div className="flex shrink-0 rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-0.5">
+              {(['image', 'video'] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setSearchFilterType(type)}
+                  className={cn(
+                    'rounded-md px-2.5 py-0.5 text-[10px] font-medium capitalize transition-colors',
+                    searchFilterType === type
+                      ? 'bg-[#1565C0] text-white'
+                      : 'text-[#5A7A9A] hover:text-[#E8EDF5]',
+                  )}
+                >
+                  {type === 'image' ? 'Photos' : 'Videos'}
+                </button>
+              ))}
             </div>
-            <input
-              type="range"
-              min={5}
-              max={100}
-              step={5}
-              value={maxResults}
-              onChange={(e) => setMaxResults(parseInt(e.target.value))}
-              className="w-full accent-[#1565C0]"
-            />
           </div>
-          <div className="rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-3">
-            <p className="text-xs text-[#5A7A9A]">
-              Searching across{' '}
-              <span className="font-semibold text-[#E8EDF5]">
-                {media.length}
-              </span>{' '}
-              media file{media.length !== 1 ? 's' : ''} in library.
-            </p>
-          </div>
+
+          {/* Search Button */}
           <button
-            onClick={runSearch}
+            onClick={() => runSearch(selectedSearchMediaIds)}
             disabled={!selfieFile || searching || media.length === 0}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1565C0] py-2.5 text-sm font-semibold text-white hover:bg-[#1976D2] disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1565C0] py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-[#1976D2] active:bg-[#0D47A1] disabled:opacity-50"
           >
             {searching ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching…
               </>
+            ) : selectedSearchMediaIds.length > 0 ? (
+              <>
+                <Search className="h-4 w-4" /> Search Selected Media (
+                {selectedSearchMediaIds.length}) →
+              </>
             ) : (
               <>
-                <Search className="h-4 w-4" /> Search Library
+                <Search className="h-4 w-4" /> Search All Media ({media.length})
+                →
               </>
             )}
           </button>
+
+          {/* Quick actions for selection */}
+          {media.length > 0 && (
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#5A7A9A]">
+                {selectedSearchMediaIds.length} of {media.length} selected
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const filteredIds = media
+                      .filter((m) =>
+                        searchFilterType === 'image'
+                          ? m.media_type === 'photo'
+                          : m.media_type === 'video',
+                      )
+                      .map((m) => m.id);
+                    setSelectedSearchMediaIds((prev) => {
+                      const otherTypeIds = prev.filter(
+                        (id) => !filteredIds.includes(id),
+                      );
+                      return [...otherTypeIds, ...filteredIds];
+                    });
+                  }}
+                  className="text-[#60A5FA] hover:underline"
+                >
+                  Select All{' '}
+                  {searchFilterType === 'image' ? 'Photos' : 'Videos'}
+                </button>
+                <span className="text-[#1E3048]">|</span>
+                <button
+                  onClick={() => setSelectedSearchMediaIds([])}
+                  className="text-[#5A7A9A] hover:text-[#E8EDF5]"
+                >
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Scrollable list of media targets */}
+          <div className="custom-scrollbar max-h-[420px] min-h-[200px] flex-1 space-y-2 overflow-y-auto pr-1">
+            {media.filter((m) =>
+              searchFilterType === 'image'
+                ? m.media_type === 'photo'
+                : m.media_type === 'video',
+            ).length === 0 ? (
+              <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[#1E3048] bg-[#0A0F1E]/50">
+                <ImageIcon className="h-8 w-8 text-[#5A7A9A]/30" />
+                <p className="text-xs text-[#5A7A9A]">
+                  No {searchFilterType === 'image' ? 'photos' : 'videos'} in
+                  library
+                </p>
+              </div>
+            ) : (
+              media
+                .filter((m) =>
+                  searchFilterType === 'image'
+                    ? m.media_type === 'photo'
+                    : m.media_type === 'video',
+                )
+                .map((item) => {
+                  const isSelected = selectedSearchMediaIds.includes(item.id);
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedSearchMediaIds((prev) =>
+                          prev.includes(item.id)
+                            ? prev.filter((id) => id !== item.id)
+                            : [...prev, item.id],
+                        );
+                      }}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-3 rounded-lg border p-2 transition-all hover:bg-[#1E3048]/20',
+                        isSelected
+                          ? 'border-[#3B82F6] bg-[#1565C0]/5 shadow-[0_0_10px_rgba(59,130,246,0.15)]'
+                          : 'border-[#1E3048] bg-[#0A0F1E]',
+                      )}
+                    >
+                      {/* Checkbox indicator */}
+                      <div
+                        className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all',
+                          isSelected
+                            ? 'border-[#60A5FA] bg-[#1565C0]'
+                            : 'border-[#1E3048] bg-[#0D1628]',
+                        )}
+                      >
+                        {isSelected && (
+                          <CheckCircle2 className="h-3 w-3 text-white" />
+                        )}
+                      </div>
+
+                      {/* Small Thumbnail */}
+                      <div className="relative h-10 w-16 shrink-0 overflow-hidden rounded border border-[#1E3048]/60 bg-[#070B14]">
+                        {item.media_type === 'photo' && item.filepath ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`${BACKEND_URL}/${item.filepath}`}
+                            alt={item.filename}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <video
+                            src={`${BACKEND_URL}/${item.filepath}#t=0.5`}
+                            preload="metadata"
+                            muted
+                            playsInline
+                            className="h-full w-full object-cover"
+                          />
+                        )}
+                      </div>
+
+                      {/* Metadata */}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-[#E8EDF5]">
+                          {item.filename}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
+                          Status:{' '}
+                          <span className="capitalize">{item.status}</span>
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -629,9 +1001,16 @@ function HistoryDrawer() {
               <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
             </div>
           ) : history.length === 0 ? (
-            <div className="flex h-40 flex-col items-center justify-center gap-3">
-              <History className="h-8 w-8 text-[#5A7A9A]/30" />
-              <p className="text-sm text-[#5A7A9A]">No search history yet</p>
+            <div className="flex h-40 flex-col items-center justify-center gap-3 px-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#1E3048] bg-[#0D1628]">
+                <History className="h-6 w-6 text-[#5A7A9A]/40" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[#E8EDF5]">No History</p>
+                <p className="mt-1 text-xs text-[#5A7A9A]">
+                  There is no history of any analysis done.
+                </p>
+              </div>
             </div>
           ) : (
             <div className="divide-y divide-[#1E3048]">
@@ -679,11 +1058,9 @@ function ResultsTab() {
   const { session, matches, loadHistory, historyOpen, setHistoryOpen } =
     usePersonSearchStore();
   const [viewMode, setViewMode] = useState<'timeline' | 'grid'>('timeline');
-  const [videoPreview, setVideoPreview] = useState<{
-    url: string;
-    timestamp: number | null;
-    filename: string;
-  } | null>(null);
+  const [matchPreviewIndex, setMatchPreviewIndex] = useState<number | null>(
+    null,
+  );
 
   if (!session) {
     return (
@@ -749,14 +1126,6 @@ function ResultsTab() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => {
-              loadHistory();
-            }}
-            className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-          >
-            <History className="h-3.5 w-3.5" /> History
-          </button>
         </div>
       </div>
 
@@ -778,29 +1147,37 @@ function ResultsTab() {
               {/* Thumbnail */}
               <div
                 className="relative h-16 w-24 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[#1E3048] bg-black/60"
-                onClick={() => {
-                  if (
-                    match.media_source?.media_type === 'video' &&
-                    match.media_source?.filepath
-                  ) {
-                    setVideoPreview({
-                      url: `${BACKEND_URL}/${match.media_source.filepath}`,
-                      timestamp: match.timestamp ?? null,
-                      filename: match.media_source.filename ?? '',
-                    });
-                  }
-                }}
+                onClick={() => setMatchPreviewIndex(idx)}
               >
-                <div className="flex h-full items-center justify-center">
-                  {match.media_source?.media_type === 'video' ? (
-                    <Film className="h-6 w-6 text-[#5A7A9A]" />
+                {match.media_source?.filepath ? (
+                  match.media_source.media_type === 'video' ? (
+                    <video
+                      src={`${BACKEND_URL}/${match.media_source.filepath}#t=${match.timestamp ?? 0.1}`}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
-                    <ImageIcon className="h-6 w-6 text-[#5A7A9A]" />
-                  )}
-                </div>
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`${BACKEND_URL}/${match.media_source.filepath}`}
+                      alt={match.media_source.filename}
+                      className="h-full w-full object-cover"
+                    />
+                  )
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    {match.media_source?.media_type === 'video' ? (
+                      <Film className="h-6 w-6 text-[#5A7A9A]" />
+                    ) : (
+                      <ImageIcon className="h-6 w-6 text-[#5A7A9A]" />
+                    )}
+                  </div>
+                )}
                 <span
                   className={cn(
-                    'absolute top-1 right-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold',
+                    'absolute top-1 right-1 z-10 rounded-md px-1.5 py-0.5 text-[9px] font-bold',
                     similarityColor(match.similarity),
                   )}
                 >
@@ -851,26 +1228,34 @@ function ResultsTab() {
             <div
               key={match.id ?? idx}
               className="group relative cursor-pointer overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628] transition-colors hover:border-[#1565C0]/40"
-              onClick={() => {
-                if (
-                  match.media_source?.media_type === 'video' &&
-                  match.media_source?.filepath
-                ) {
-                  setVideoPreview({
-                    url: `${BACKEND_URL}/${match.media_source.filepath}`,
-                    timestamp: match.timestamp ?? null,
-                    filename: match.media_source.filename ?? '',
-                  });
-                }
-              }}
+              onClick={() => setMatchPreviewIndex(idx)}
             >
               <div className="relative aspect-video bg-black/40">
-                <div className="flex h-full items-center justify-center">
-                  <ImageIcon className="h-6 w-6 text-[#5A7A9A]" />
-                </div>
+                {match.media_source?.filepath ? (
+                  match.media_source.media_type === 'video' ? (
+                    <video
+                      src={`${BACKEND_URL}/${match.media_source.filepath}#t=${match.timestamp ?? 0.1}`}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`${BACKEND_URL}/${match.media_source.filepath}`}
+                      alt={match.media_source.filename}
+                      className="h-full w-full object-cover"
+                    />
+                  )
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <ImageIcon className="h-6 w-6 text-[#5A7A9A]" />
+                  </div>
+                )}
                 <span
                   className={cn(
-                    'absolute top-1.5 right-1.5 rounded-md px-1.5 py-0.5 text-[9px] font-bold',
+                    'absolute top-1.5 right-1.5 z-10 rounded-md px-1.5 py-0.5 text-[9px] font-bold',
                     similarityColor(match.similarity),
                   )}
                 >
@@ -892,46 +1277,32 @@ function ResultsTab() {
         </div>
       )}
 
-      {/* Video preview modal */}
-      {videoPreview && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
-          onClick={() => setVideoPreview(null)}
-        >
-          <div
-            className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-[#1E3048] bg-[#0A0F1E]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[#1E3048] px-5 py-3">
-              <p className="truncate text-sm font-semibold text-[#E8EDF5]">
-                {videoPreview.filename}
-              </p>
-              <button
-                onClick={() => setVideoPreview(null)}
-                className="rounded-lg p-1.5 text-[#5A7A9A] hover:bg-[#1E3048]"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-4">
-              <video
-                controls
-                className="w-full rounded-lg"
-                src={videoPreview.url}
-              />
-            </div>
-          </div>
-        </div>
+      {/* Match preview modal */}
+      {matchPreviewIndex !== null && (
+        <MatchPreviewCarousel
+          matches={matches}
+          startIndex={matchPreviewIndex}
+          onClose={() => setMatchPreviewIndex(null)}
+        />
       )}
-
-      <HistoryDrawer />
     </div>
   );
 }
 
 // ── Main Page ──
 export default function PersonSearchPage() {
-  const { activeTab, setActiveTab, loadHistory } = usePersonSearchStore();
+  const activeTab = usePersonSearchStore((s) => s.activeTab);
+  const setActiveTab = usePersonSearchStore((s) => s.setActiveTab);
+  const loadHistory = usePersonSearchStore((s) => s.loadHistory);
+  const historyOpen = usePersonSearchStore((s) => s.historyOpen);
+  const setHistoryOpen = usePersonSearchStore((s) => s.setHistoryOpen);
+  const selectedSearchMediaIds = usePersonSearchStore(
+    (s) => s.selectedSearchMediaIds,
+  );
+  const runSearch = usePersonSearchStore((s) => s.runSearch);
+  const selfieFile = usePersonSearchStore((s) => s.selfieFile);
+  const media = usePersonSearchStore((s) => s.media);
+  const searching = usePersonSearchStore((s) => s.searching);
 
   useEffect(() => {
     loadHistory();
@@ -939,11 +1310,22 @@ export default function PersonSearchPage() {
 
   return (
     <div className="max-w-6xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#E8EDF5]">Person Search</h1>
-        <p className="mt-1 text-sm text-[#5A7A9A]">
-          Find a person across photos and videos using face recognition.
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[#E8EDF5]">Person Search</h1>
+          <p className="mt-1 text-sm text-[#5A7A9A]">
+            Find a person across photos and videos using face recognition.
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            loadHistory();
+            setHistoryOpen(!historyOpen);
+          }}
+          className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+        >
+          <History className="h-3.5 w-3.5" /> History
+        </button>
       </div>
 
       {/* Tab Bar */}
@@ -968,6 +1350,8 @@ export default function PersonSearchPage() {
       {activeTab === 'library' && <LibraryTab />}
       {activeTab === 'search' && <SearchTab />}
       {activeTab === 'results' && <ResultsTab />}
+
+      <HistoryDrawer />
     </div>
   );
 }

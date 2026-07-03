@@ -41,7 +41,11 @@ interface PersonAnalysisState {
   wizardVideos: UploadedVideo[];
   videoLines: Record<
     string,
-    { start: [number, number]; end: [number, number] } | null
+    {
+      start: [number, number];
+      end: [number, number];
+      resolution?: { width: number; height: number };
+    } | null
   >;
   simThreshold: number;
   confThreshold: number;
@@ -51,7 +55,12 @@ interface PersonAnalysisState {
   setWizardStep: (step: WizardStep) => void;
   setSimThreshold: (v: number) => void;
   setConfThreshold: (v: number) => void;
-  handleLineDraw: (start: [number, number], end: [number, number]) => void;
+  handleLineDraw: (
+    start: [number, number],
+    end: [number, number],
+    width: number,
+    height: number,
+  ) => void;
   handleSkipLine: () => void;
   handleProcess: (
     onDone: (sessions: AnalyticsSession[]) => void,
@@ -180,11 +189,14 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
     setSimThreshold: (v) => set({ simThreshold: v }),
     setConfThreshold: (v) => set({ confThreshold: v }),
 
-    handleLineDraw: (start, end) => {
+    handleLineDraw: (start, end, width, height) => {
       const { wizardVideos, wizardVideoIndex } = get();
       const video = wizardVideos[wizardVideoIndex];
       set((s) => ({
-        videoLines: { ...s.videoLines, [video.id]: { start, end } },
+        videoLines: {
+          ...s.videoLines,
+          [video.id]: { start, end, resolution: { width, height } },
+        },
       }));
       advanceWizard(get, set);
     },
