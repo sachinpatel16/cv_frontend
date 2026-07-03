@@ -28,6 +28,7 @@ import { useDropzone } from 'react-dropzone';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { usePersonSearchStore } from '@/stores/personSearchStore';
+import { ApiError } from '@/types/api';
 import { StatusBadge } from '@/components/services/shared/StatusBadge';
 import type { MediaSource, SearchMatch } from '@/types/peoplefind';
 
@@ -455,7 +456,7 @@ function LibraryTab() {
               </button>
             )}
             <button
-              onClick={fetchMedia}
+              onClick={() => fetchMedia()}
               className="rounded-md p-1.5 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
               title="Refresh"
             >

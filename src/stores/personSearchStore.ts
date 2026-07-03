@@ -34,6 +34,7 @@ interface PersonSearchState {
   addMedia: (files: File[]) => Promise<void>;
   removeMedia: (id: string) => Promise<void>;
   bulkRemoveMedia: () => Promise<void>;
+  bulkDeleteMedia: () => Promise<void>;
   toggleSelect: (id: string) => void;
   clearSelection: () => void;
   setDeleteAllOpen: (v: boolean) => void;
@@ -48,7 +49,9 @@ interface PersonSearchState {
   setSelfie: (file: File | null, preview: string | null) => void;
   setSimilarity: (v: number) => void;
   setMaxResults: (v: number) => void;
-  setSelectedSearchMediaIds: (ids: string[]) => void;
+  setSelectedSearchMediaIds: (
+    ids: string[] | ((prev: string[]) => string[]),
+  ) => void;
   runSearch: (selectedMediaIds?: string[]) => Promise<void>;
 
   // Results
@@ -161,6 +164,10 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
     }
   },
 
+  bulkDeleteMedia: async () => {
+    await bulkDeleteMedia();
+  },
+
   toggleSelect: (id) =>
     set((s) => ({
       selectedIds: s.selectedIds.includes(id)
@@ -181,7 +188,11 @@ export const usePersonSearchStore = create<PersonSearchState>((set, get) => ({
     set({ selfieFile: file, selfiePreview: preview }),
   setSimilarity: (v) => set({ similarity: v }),
   setMaxResults: (v) => set({ maxResults: v }),
-  setSelectedSearchMediaIds: (ids) => set({ selectedSearchMediaIds: ids }),
+  setSelectedSearchMediaIds: (ids) =>
+    set((s) => ({
+      selectedSearchMediaIds:
+        typeof ids === 'function' ? ids(s.selectedSearchMediaIds) : ids,
+    })),
 
   runSearch: async (selectedMediaIds) => {
     const { selfieFile, media, similarity } = get();
