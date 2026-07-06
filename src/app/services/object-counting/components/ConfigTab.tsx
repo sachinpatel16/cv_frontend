@@ -149,6 +149,8 @@ export function ConfigTab() {
     triggeringAnalysisId,
     triggerAnalysis,
     getActiveClassesToTrack,
+    device,
+    setDevice,
   } = useObjectCountingStore();
 
   const filteredCocoClasses = COCO_CLASSES.filter(
@@ -561,16 +563,36 @@ export function ConfigTab() {
             <label className="text-xs text-[#5A7A9A]">
               YOLO Image Size (Resolution)
             </label>
-            <select
+            <input
+              type="number"
+              min="32"
+              step="32"
               value={imgsz}
-              onChange={(e) => setImgsz(parseInt(e.target.value))}
+              onChange={(e) => setImgsz(parseInt(e.target.value) || 480)}
+              className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
+            />
+            <p className="text-[10px] text-[#5A7A9A]/60">
+              Higher resolution (e.g. 1920) improves detection of small objects
+              but runs slower.
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs text-[#5A7A9A]">Execution Device</label>
+            <select
+              value={device || 'null'}
+              onChange={(e) =>
+                setDevice(e.target.value === 'null' ? null : e.target.value)
+              }
               className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
             >
-              <option value={320}>320 x 320</option>
-              <option value={480}>480 x 480 (Default)</option>
-              <option value={640}>640 x 640</option>
-              <option value={1280}>1280 x 1280</option>
+              <option value="null">Auto-detect</option>
+              <option value="cpu">CPU</option>
+              <option value="cuda">GPU (CUDA)</option>
             </select>
+            <p className="text-[10px] text-[#5A7A9A]/60">
+              Inference hardware device (CPU or NVIDIA GPU via CUDA).
+            </p>
           </div>
 
           <div className="space-y-1.5">

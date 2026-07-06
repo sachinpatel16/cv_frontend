@@ -60,6 +60,8 @@ interface ObjectCountingState {
   reidClasses: string[];
   setReidClasses: (classes: string[] | ((prev: string[]) => string[])) => void;
   toggleReidClass: (c: string) => void;
+  device: string | null;
+  setDevice: (v: string | null) => void;
 
   // Analytics settings
   entryExitReport: boolean;
@@ -150,6 +152,8 @@ export const useObjectCountingStore = create<ObjectCountingState>(
           ? state.reidClasses.filter((x) => x !== c)
           : [...state.reidClasses, c],
       })),
+    device: null,
+    setDevice: (v) => set({ device: v }),
 
     entryExitReport: false,
     setEntryExitReport: (v) => set({ entryExitReport: v }),
@@ -266,6 +270,8 @@ export const useObjectCountingStore = create<ObjectCountingState>(
 
         updates.entryExitReport = !!details.entry_exit_report;
         updates.lineCoords = details.line_coords || null;
+        updates.device = (details as any).device || null;
+        updates.imgsz = (details as any).imgsz || 480;
 
         set(updates);
       } catch (err) {
@@ -293,6 +299,7 @@ export const useObjectCountingStore = create<ObjectCountingState>(
         gmcMethod,
         reidClasses,
         imgsz,
+        device,
       } = get();
 
       if (!selectedMediaId) return;
@@ -332,6 +339,7 @@ export const useObjectCountingStore = create<ObjectCountingState>(
         gmc_method: gmcMethod,
         reid_classes: reidClasses.length > 0 ? reidClasses : null,
         imgsz: imgsz,
+        device: device,
       };
 
       try {

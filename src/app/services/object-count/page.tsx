@@ -138,6 +138,7 @@ export default function ObjectCountPage() {
   const [gmcMethod, setGmcMethod] = useState<string>('none');
   const [imgsz, setImgsz] = useState<number>(480);
   const [reidClasses, setReidClasses] = useState<string[]>(['person']);
+  const [device, setDevice] = useState<string | null>(null);
 
   // Helper to compute active classes being tracked
   const getActiveClassesToTrack = useCallback((): string[] => {
@@ -238,6 +239,8 @@ export default function ObjectCountPage() {
     );
     setEntryExitReport(!!details.entry_exit_report);
     setLineCoords(details.line_coords || null);
+    setDevice((details as any).device || null);
+    setImgsz((details as any).imgsz || 480);
   }, [details]);
 
   // Fetch all media
@@ -417,6 +420,7 @@ export default function ObjectCountPage() {
       gmc_method: gmcMethod,
       reid_classes: reidClasses.length > 0 ? reidClasses : null,
       imgsz: imgsz,
+      device: device,
     };
 
     try {
@@ -1227,19 +1231,42 @@ export default function ObjectCountPage() {
                     <label className="text-xs text-[#5A7A9A]">
                       YOLO Image Size (Resolution)
                     </label>
-                    <select
+                    <input
+                      type="number"
+                      min="32"
+                      step="32"
                       value={imgsz}
-                      onChange={(e) => setImgsz(parseInt(e.target.value))}
+                      onChange={(e) =>
+                        setImgsz(parseInt(e.target.value) || 480)
+                      }
+                      className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
+                    />
+                    <p className="text-[10px] text-[#5A7A9A]/60">
+                      Higher resolution (e.g. 1920) improves detection of small
+                      objects but runs slower.
+                    </p>
+                  </div>
+
+                  {/* Execution Device */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-[#5A7A9A]">
+                      Execution Device
+                    </label>
+                    <select
+                      value={device || 'null'}
+                      onChange={(e) =>
+                        setDevice(
+                          e.target.value === 'null' ? null : e.target.value,
+                        )
+                      }
                       className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
                     >
-                      <option value={320}>320 x 320</option>
-                      <option value={480}>480 x 480 (Default)</option>
-                      <option value={640}>640 x 640</option>
-                      <option value={1280}>1280 x 1280</option>
+                      <option value="null">Auto-detect</option>
+                      <option value="cpu">CPU</option>
+                      <option value="cuda">GPU (CUDA)</option>
                     </select>
                     <p className="text-[10px] text-[#5A7A9A]/60">
-                      Higher resolution improves detection of small objects but
-                      runs slower.
+                      Inference hardware device (CPU or NVIDIA GPU via CUDA).
                     </p>
                   </div>
 
@@ -1444,6 +1471,18 @@ export default function ObjectCountPage() {
                           : 'Starting analysis...'}
                       </p>
                     </div>
+
+                    {details.classify_gender && (
+                      <div className="mt-3 flex max-w-sm items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-left text-[11px] leading-normal text-amber-400/90">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        <span>
+                          <strong>Demographics Active:</strong> Gender
+                          classification (InsightFace) is enabled. Extracting
+                          head crops and running demographics classification is
+                          a heavy task and will take more time.
+                        </span>
+                      </div>
+                    )}
 
                     <p className="mt-4 animate-pulse text-[10px] text-[#5A7A9A]/60">
                       This page will auto-refresh once results are processed by

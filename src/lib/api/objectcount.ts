@@ -21,6 +21,7 @@ export interface ObjectAnalysisConfig {
   gmc_method?: string;
   reid_classes?: string[] | null;
   imgsz?: number;
+  device?: string | null;
 }
 
 /** Upload one or more photos or videos to be tracked. Media is initially saved in a "pending" state. */
