@@ -46,4 +46,7 @@ export const API_ENDPOINTS = {
     REPORT: '/activity/report',
     REPORT_SUMMARY: '/activity/report/summary',
   },
+  GALLERY: {
+    MEDIA: '/gallery/media',
+  },
 } as const;

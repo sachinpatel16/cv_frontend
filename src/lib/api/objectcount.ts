@@ -52,13 +52,16 @@ export async function uploadObjectCountMedia(
 
 /** Triggers a customized background YOLO + BoT-SORT + InsightFace analysis task */
 export async function triggerObjectAnalysis(
-  mediaId: string,
+  galleryMediaId: string,
   config: ObjectAnalysisConfig,
 ): Promise<ApiResponse<ObjectCountMedia>> {
   try {
     const response = await apiClient.post<ApiResponse<ObjectCountMedia>>(
-      `${API_ENDPOINTS.OBJECTCOUNT.MEDIA}/${mediaId}/analyze`,
-      config,
+      '/objectcount/analyze',
+      {
+        gallery_media_id: galleryMediaId,
+        ...config,
+      },
     );
     return response.data;
   } catch (error) {

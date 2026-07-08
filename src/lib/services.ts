@@ -5,6 +5,8 @@ import {
   Eye,
   Users,
   CalendarDays,
+  FolderOpen,
+  History,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -16,6 +18,7 @@ export interface Service {
   description: string;
   milestone: 1 | 2;
   comingSoon: boolean;
+  legacy?: boolean;
 }
 
 export const SERVICES_REGISTRY: Service[] = [
@@ -23,11 +26,12 @@ export const SERVICES_REGISTRY: Service[] = [
     id: 'object-count',
     label: 'Object Count',
     icon: BarChart2,
-    href: '/services/object-count',
+    href: '/services/object-counting',
     description:
       'Count and track unique items across 80 COCO classes, with customizable vehicle and gender classification.',
     milestone: 1,
     comingSoon: false,
+    legacy: true,
   },
   {
     id: 'activity-detection',
@@ -38,6 +42,7 @@ export const SERVICES_REGISTRY: Service[] = [
       'Flag suspicious events with timestamps, screenshots, and video clips.',
     milestone: 1,
     comingSoon: false,
+    legacy: true,
   },
   {
     id: 'person-search',
@@ -48,6 +53,7 @@ export const SERVICES_REGISTRY: Service[] = [
       'Find anyone across hours of footage using visual similarity matching.',
     milestone: 1,
     comingSoon: false,
+    legacy: false,
   },
   {
     id: 'people-analytics',
@@ -58,6 +64,7 @@ export const SERVICES_REGISTRY: Service[] = [
       'CCTV video counting, interactive entry/exit crossing gate, and occupancy analytics.',
     milestone: 1,
     comingSoon: false,
+    legacy: true,
   },
   {
     id: 'attendance',
@@ -68,6 +75,7 @@ export const SERVICES_REGISTRY: Service[] = [
       'Manage employee registry, upload photos or videos, and track attendance logs.',
     milestone: 1,
     comingSoon: false,
+    legacy: false,
   },
 ];
 

@@ -10,6 +10,9 @@ import {
   Settings,
   LogOut,
   Microscope,
+  Folder,
+  FolderOpen,
+  History,
 } from 'lucide-react';
 import { SERVICES_REGISTRY } from '@/lib/services';
 import { cn } from '@/lib/utils';
@@ -17,6 +20,7 @@ import { logout } from '@/lib/api/auth';
 
 const topNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/services/library', label: 'My Library', icon: Folder },
 ];
 
 const bottomNav = [
@@ -29,14 +33,17 @@ function NavItem({
   label,
   icon: Icon,
   disabled = false,
+  noHighlight = false,
 }: {
   href: string;
   label: string;
   icon: React.ElementType;
   disabled?: boolean;
+  noHighlight?: boolean;
 }) {
   const pathname = usePathname();
-  const active = pathname === href || pathname.startsWith(href + '/');
+  const active =
+    !noHighlight && (pathname === href || pathname.startsWith(href + '/'));
   return (
     <Link
       href={disabled ? '#' : href}
@@ -82,9 +89,22 @@ export function Sidebar() {
           icon={Microscope}
         />
 
-        <p className="mt-4 mb-1 px-3 text-[10px] font-semibold tracking-widest text-[#1E3048] uppercase">
-          Services
-        </p>
+        <NavItem
+          href="/services/analysis"
+          label="Investigation"
+          icon={FolderOpen}
+        />
+
+        <NavItem href="/services/history" label="History" icon={History} />
+
+        <div className="mt-4 mb-1 flex items-center gap-2 px-3">
+          <span className="text-[10px] font-semibold tracking-widest text-[#1E3048] uppercase">
+            Services
+          </span>
+          <span className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-rose-400 uppercase">
+            Legacy
+          </span>
+        </div>
 
         {SERVICES_REGISTRY.map((s) => (
           <div key={s.id} className="relative">
@@ -93,6 +113,7 @@ export function Sidebar() {
               label={s.label}
               icon={s.icon}
               disabled={s.comingSoon}
+              noHighlight={s.legacy}
             />
             {s.comingSoon && (
               <span className="absolute top-1/2 right-3 -translate-y-1/2 rounded bg-[#F59E0B]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#F59E0B]">
