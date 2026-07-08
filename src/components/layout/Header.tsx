@@ -2,7 +2,9 @@
 
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Bell } from 'lucide-react';
+import Link from 'next/link';
+import { Bell, Folder } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const BREADCRUMB_MAP: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -12,6 +14,7 @@ const BREADCRUMB_MAP: Record<string, string> = {
   '/services/activity-detection/activity': 'Human Activity Detection',
   '/services/person-search': 'Person Search',
   '/services/people-count': 'People Count',
+  '/services/library': 'My Library',
   '/reports': 'Reports',
   '/settings': 'Settings',
 };
@@ -41,6 +44,19 @@ export function Header() {
       <p className="text-sm font-semibold text-[#E8EDF5]">{label}</p>
 
       <div className="flex items-center gap-3">
+        <Link
+          href="/services/library"
+          className={cn(
+            'rounded-md p-1.5 transition-colors',
+            pathname === '/services/library'
+              ? 'bg-[#1E3048] text-[#60A5FA]'
+              : 'text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]',
+          )}
+          title="My Library"
+        >
+          <Folder className="h-4.5 w-4.5" />
+        </Link>
+
         <button className="relative rounded-md p-1.5 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]">
           <Bell className="h-4.5 w-4.5" />
           <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-[#F59E0B]" />

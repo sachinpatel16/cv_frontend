@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { Save, LogOut } from 'lucide-react';
 import { logout } from '@/lib/api/auth';
+import { useUserStore } from '@/stores/userStore';
 
 const inputCls =
   'w-full h-9 rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 text-sm text-[#E8EDF5] placeholder-[#5A7A9A] focus:outline-none focus:ring-2 focus:ring-[#1565C0]/30 focus:border-[#1565C0]';
@@ -70,8 +71,138 @@ function Toggle({
   );
 }
 
+interface DualRangeSliderProps {
+  min: number;
+  max: number;
+  valueMin: number;
+  valueMax: number;
+  onChange: (min: number, max: number) => void;
+  gap?: number;
+}
+
+function DualRangeSlider({
+  min,
+  max,
+  valueMin,
+  valueMax,
+  onChange,
+  gap = 1,
+}: DualRangeSliderProps) {
+  const getPercent = (value: number) =>
+    Math.round(((value - min) / (max - min)) * 100);
+  const minPercent = getPercent(valueMin);
+  const maxPercent = getPercent(valueMax);
+
+  return (
+    <div className="relative w-full py-2">
+      {/* Style tag injection for custom slider thumb behavior */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        .dual-range-input {
+          pointer-events: none;
+          position: absolute;
+          height: 6px;
+          width: 100%;
+          outline: none;
+          background: transparent;
+          -webkit-appearance: none;
+        }
+        .dual-range-input::-webkit-slider-thumb {
+          pointer-events: auto;
+          cursor: pointer;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #E8EDF5;
+          border: 2px solid #1565C0;
+          -webkit-appearance: none;
+        }
+        .dual-range-input::-moz-range-thumb {
+          pointer-events: auto;
+          cursor: pointer;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #E8EDF5;
+          border: 2px solid #1565C0;
+        }
+      `,
+        }}
+      />
+
+      {/* Track and absolute positioned inputs container */}
+      <div className="relative flex h-10 w-full flex-col justify-center">
+        {/* Background track */}
+        <div className="relative h-[6px] w-full rounded bg-[#1E3048]">
+          {/* Active highlighted range */}
+          <div
+            className="absolute h-full rounded bg-[#1565C0]"
+            style={{
+              left: `${minPercent}%`,
+              width: `${maxPercent - minPercent}%`,
+            }}
+          />
+        </div>
+
+        {/* Inputs (absolute positioned overlapping the track container) */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={valueMin}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            if (valueMax - val >= gap) {
+              onChange(val, valueMax);
+            }
+          }}
+          className="dual-range-input"
+          style={{
+            top: '17px',
+            zIndex: valueMin > (max - min) / 2 ? 25 : 30,
+          }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={valueMax}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            if (val - valueMin >= gap) {
+              onChange(valueMin, val);
+            }
+          }}
+          className="dual-range-input"
+          style={{
+            top: '17px',
+            zIndex: valueMin > (max - min) / 2 ? 30 : 25,
+          }}
+        />
+      </div>
+
+      {/* Ticks and Labels below */}
+      <div className="relative mt-2 flex justify-between px-1 text-[10px] font-medium text-[#5A7A9A] select-none">
+        {Array.from({ length: max - min + 1 }, (_, i) => {
+          const val = min + i;
+          return (
+            <div key={val} className="flex w-6 flex-col items-center">
+              <div className="h-1 w-0.5 bg-[#1E3048]" />
+              <span className="mt-1 leading-none">{val}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
+  const { gridMin, gridMax, setGridMin, setGridMax } = useUserStore();
   const [name, setName] = useState(session?.user?.name ?? '');
   const [email] = useState(session?.user?.email ?? '');
   const [defaultClass, setDefaultClass] = useState('person');
@@ -136,6 +267,23 @@ export default function SettingsPage() {
             onChange={(e) => setDefaultConfidence(Number(e.target.value))}
             className="w-full accent-[#1565C0]"
           />
+        </Field>
+        <Field
+          label={`Library Grid Columns Range: ${gridMin} - ${gridMax} Columns`}
+        >
+          <div className="pt-2">
+            <DualRangeSlider
+              min={2}
+              max={10}
+              valueMin={gridMin}
+              valueMax={gridMax}
+              onChange={(min, max) => {
+                setGridMin(min);
+                setGridMax(max);
+              }}
+              gap={1}
+            />
+          </div>
         </Field>
       </Section>
 

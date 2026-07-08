@@ -59,7 +59,8 @@ export interface VisitorAnalytics {
 /** Payload sent to POST /peopleanalytics/process */
 export interface ProcessSessionPayload {
   videos: {
-    video_path: string;
+    gallery_media_id?: string;
+    video_path?: string;
     line_start?: [number, number];
     line_end?: [number, number];
     similarity_threshold?: number;
