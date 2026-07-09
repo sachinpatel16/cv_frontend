@@ -101,3 +101,29 @@
   background: #1e3048;
   border-radius: 2px;
 }
+
+/* Global Scrollbar Customization */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e3048 #0a0f1e;
+}
+
+/* WebKit (Chrome, Safari, Edge, Opera) custom styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0f1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e3048;
+  border-radius: 9999px;
+  border: 1px solid #0a0f1e;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1565c0;
+}

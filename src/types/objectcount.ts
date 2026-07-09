@@ -4,6 +4,7 @@ export interface ObjectCountMedia {
   filename: string;
   filepath: string;
   processed_filepath: string | null;
+  gallery_media_id?: string | null;
   media_type: 'photo' | 'video';
   status: 'pending' | 'processing' | 'completed' | 'failed';
   classify_gender: boolean;

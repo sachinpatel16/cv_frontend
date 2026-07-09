@@ -3,10 +3,8 @@ import {
   Activity,
   Search,
   Eye,
-  Users,
   CalendarDays,
-  FolderOpen,
-  History,
+  ImageIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -22,6 +20,16 @@ export interface Service {
 }
 
 export const SERVICES_REGISTRY: Service[] = [
+  {
+    id: 'gallery',
+    label: 'Gallery',
+    icon: ImageIcon,
+    href: '/services/gallery',
+    description:
+      'Centralized gallery to upload, manage, and analyze raw media assets.',
+    milestone: 1,
+    comingSoon: false,
+  },
   {
     id: 'object-count',
     label: 'Object Count',
