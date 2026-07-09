@@ -35,6 +35,14 @@ import {
 import { useObjectCountingStore } from '@/stores/objectCountingStore';
 import { ConfigTab as ObjectCountConfigTab } from '@/app/services/object-counting/components/ConfigTab';
 import { ResultsTab as ObjectCountResultsTab } from '@/app/services/object-counting/components/ResultsTab';
+import TrackerConfiguration from '@/app/services/object-count/components/TrackerConfiguration';
+import AdvancedConfiguration from '@/app/services/object-count/components/AdvancedConfiguration';
+import DrawingModal from '@/app/services/object-count/components/DrawingModal';
+import CocoCategorySelection from '@/app/services/object-count/components/CocoCategorySelection';
+import { COCO_CLASSES } from '@/lib/services';
+
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
 
 // Person Analysis imports
 import {
@@ -49,6 +57,7 @@ import { ResultsTab as PersonAnalysisResultsTab } from '@/app/services/people-an
 
 import type { GalleryMedia } from '@/types/gallery';
 import Link from 'next/link';
+import Image from 'next/image';
 
 type Step = 'history' | 'upload' | 'select' | 'configure' | 'run' | 'results';
 type ResultsTabName = 'object-count' | 'person-analysis' | 'activity-detection';
@@ -92,14 +101,61 @@ function AnalysisPageContent() {
     clearMedia,
   } = useAnalysisPageStore();
 
-  // Object Count Store Hooks
   const {
     media: objectCountRuns,
     selectedMediaId: objectCountMediaId,
     details: objectCountDetails,
     fetchMedia: fetchObjectCountRuns,
     fetchDetails: fetchObjectCountDetails,
+    trackPeople: ocTrackPeople,
+    setTrackPeople: setOcTrackPeople,
+    classifyGender: ocClassifyGender,
+    setClassifyGender: setOcClassifyGender,
+    trackVehicles: ocTrackVehicles,
+    setTrackVehicles: setOcTrackVehicles,
+    classifyVehicle: ocClassifyVehicle,
+    setClassifyVehicle: setOcClassifyVehicle,
+    trackCustom: ocTrackCustom,
+    setTrackCustom: setOcTrackCustom,
+    selectedCustomClasses: ocSelectedCustomClasses,
+    setSelectedCustomClasses: setOcSelectedCustomClasses,
+    customSearchQuery: ocCustomSearchQuery,
+    setCustomSearchQuery: setOcCustomSearchQuery,
+    toggleCustomClass,
+    confidenceThreshold: ocConfidence,
+    setConfidenceThreshold: setOcConfidence,
+    minTrackFrames: ocMinTrackFrames,
+    setMinTrackFrames: setOcMinTrackFrames,
+    trackBuffer: ocTrackBuffer,
+    setTrackBuffer: setOcTrackBuffer,
+    gmcMethod: ocGmc,
+    setGmcMethod: setOcGmc,
+    imgsz: ocResolution,
+    setImgsz: setOcResolution,
+    reidClasses: ocReidClasses,
+    setReidClasses: setOcReidClasses,
+    entryExitReport: ocEntryExitReport,
+    setEntryExitReport: setOcEntryExitReport,
+    lineCoords: ocLineCoords,
+    setLineCoords: setOcLineCoords,
+    isDrawingModalOpen: ocIsDrawingModalOpen,
+    setIsDrawingModalOpen: setOcIsDrawingModalOpen,
+    triggeringAnalysisId,
+    triggerAnalysis,
+    device: ocDevice,
+    setDevice: setOcDevice,
   } = useObjectCountingStore();
+
+  const availableReidClasses = useObjectCountingStore
+    .getState()
+    .getActiveClassesToTrack();
+
+  const filteredCocoClasses = COCO_CLASSES.filter(
+    (c) =>
+      c.toLowerCase().includes(ocCustomSearchQuery.toLowerCase()) &&
+      c !== 'person' &&
+      !['car', 'truck', 'bus', 'motorcycle', 'bicycle'].includes(c),
+  );
 
   // Person Analysis Store Hooks
   const {
@@ -417,13 +473,10 @@ function AnalysisPageContent() {
 
   return (
     <div className="max-w-6xl space-y-6">
-      {/* CSS Override to hide original trigger buttons and define animations */}
+      {/* CSS Override to define animations */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
-        .object-counting-config-wrapper button.bg-\\[\\#1565C0\\] {
-          display: none !important;
-        }
         @keyframes pulse-glow {
           0%, 100% {
             box-shadow: 0 0 0 0 rgba(21, 101, 192, 0.5);
@@ -864,110 +917,178 @@ function AnalysisPageContent() {
 
               {activeStep !== 'upload' && (
                 <>
-                  {/* Left Column: Checklist */}
+                  {/* Left Column: Checklist / Source File Preview */}
                   <div className="space-y-6 lg:col-span-1">
-                    {/* Checklist */}
-                    <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                      <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
-                        <Layers className="h-4 w-4 text-[#1565C0]" />
-                        2. Choose Analyses
-                      </h2>
-                      <p className="text-xs text-[#5A7A9A]">
-                        Select one or multiple analyses to run on this video:
-                      </p>
+                    {uploadedMedia &&
+                    (activeStep === 'configure' || activeStep === 'run') &&
+                    selectedAnalyses.objectCount ? (
+                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                        <div className="flex items-center justify-between border-b border-[#1E3048]/40 pb-2">
+                          <h3 className="text-sm font-semibold text-[#E8EDF5]">
+                            Source File Preview
+                          </h3>
+                        </div>
+                        <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-[#1E3048] bg-black">
+                          {uploadedMedia.media_type === 'video' ? (
+                            <video
+                              src={getGalleryMediaUrl(uploadedMedia.filepath)}
+                              controls
+                              muted
+                              preload="metadata"
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <div className="relative h-full w-full">
+                              <Image
+                                src={getGalleryMediaUrl(uploadedMedia.filepath)}
+                                alt="Source photo preview"
+                                fill
+                                className="object-contain"
+                              />
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="space-y-2.5">
-                        {[
-                          {
-                            id: 'objectCount',
-                            label: 'Object Count',
-                            desc: 'Detect and track custom items (vehicles, people, etc.)',
-                            icon: BarChart2,
-                          },
-                          {
-                            id: 'personAnalysis',
-                            label: 'Person Analysis',
-                            desc: 'Identify crossing gates, entry/exit, and occupancy count',
-                            icon: Eye,
-                          },
-                          {
-                            id: 'activityDetection',
-                            label: 'Activity Detection',
-                            desc: 'Detect behavioral alerts (falls, loitering, fighting)',
-                            icon: Activity,
-                          },
-                        ].map(({ id, label, desc, icon: Icon }) => {
-                          const disabled = !uploadedMedia;
-                          return (
-                            <div
-                              key={id}
-                              onClick={() => {
-                                if (disabled) {
-                                  toast.error(
-                                    'Please select a video file first.',
-                                  );
-                                  return;
-                                }
-                                toggleAnalysis(id as any);
-                              }}
-                              className={cn(
-                                'flex items-start gap-3 rounded-lg border p-3 transition-all select-none',
-                                selectedAnalyses[
-                                  id as keyof typeof selectedAnalyses
-                                ]
-                                  ? 'border-[#1565C0] bg-[#1565C0]/5'
-                                  : 'border-[#1E3048] bg-[#0A0F1E]',
-                                disabled
-                                  ? 'cursor-not-allowed opacity-40'
-                                  : 'cursor-pointer hover:border-[#1E3048]/80',
-                              )}
+                        {/* Video stats */}
+                        <div className="space-y-2.5 rounded-lg bg-[#0A0F1E]/60 p-3 text-xs">
+                          <div className="flex justify-between border-b border-[#1E3048]/40 pb-2">
+                            <span className="text-[#5A7A9A]">Name</span>
+                            <span className="max-w-[180px] truncate font-semibold text-[#E8EDF5]">
+                              {uploadedMedia.filename}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-b border-[#1E3048]/40 pb-2">
+                            <span className="text-[#5A7A9A]">Type</span>
+                            <span className="font-semibold text-[#E8EDF5] capitalize">
+                              {uploadedMedia.media_type}
+                            </span>
+                          </div>
+                          <div className="flex justify-between border-b border-[#1E3048]/40 pb-2">
+                            <span className="text-[#5A7A9A]">Created</span>
+                            <span className="font-semibold text-[#E8EDF5]">
+                              {new Date(
+                                uploadedMedia.created_at,
+                              ).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[#5A7A9A]">File ID</span>
+                            <span
+                              className="max-w-[140px] truncate font-mono text-[10px] text-[#5A7A9A]"
+                              title={uploadedMedia.id}
                             >
+                              {uploadedMedia.id}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                          <Layers className="h-4 w-4 text-[#1565C0]" />
+                          2. Choose Analyses
+                        </h2>
+                        <p className="text-xs text-[#5A7A9A]">
+                          Select one or multiple analyses to run on this video:
+                        </p>
+
+                        <div className="space-y-2.5">
+                          {[
+                            {
+                              id: 'objectCount',
+                              label: 'Object Count',
+                              desc: 'Detect and track custom items (vehicles, people, etc.)',
+                              icon: BarChart2,
+                            },
+                            {
+                              id: 'personAnalysis',
+                              label: 'Person Analysis',
+                              desc: 'Identify crossing gates, entry/exit, and occupancy count',
+                              icon: Eye,
+                            },
+                            {
+                              id: 'activityDetection',
+                              label: 'Activity Detection',
+                              desc: 'Detect behavioral alerts (falls, loitering, fighting)',
+                              icon: Activity,
+                            },
+                          ].map(({ id, label, desc, icon: Icon }) => {
+                            const disabled = !uploadedMedia;
+                            return (
                               <div
+                                key={id}
+                                onClick={() => {
+                                  if (disabled) {
+                                    toast.error(
+                                      'Please select a video file first.',
+                                    );
+                                    return;
+                                  }
+                                  toggleAnalysis(id as any);
+                                }}
                                 className={cn(
-                                  'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all',
+                                  'flex items-start gap-3 rounded-lg border p-3 transition-all select-none',
                                   selectedAnalyses[
                                     id as keyof typeof selectedAnalyses
                                   ]
-                                    ? 'border-[#60A5FA] bg-[#1565C0]'
-                                    : 'border-[#1E3048] bg-[#0D1628]',
+                                    ? 'border-[#1565C0] bg-[#1565C0]/5'
+                                    : 'border-[#1E3048] bg-[#0A0F1E]',
+                                  disabled
+                                    ? 'cursor-not-allowed opacity-40'
+                                    : 'cursor-pointer hover:border-[#1E3048]/80',
                                 )}
                               >
-                                {selectedAnalyses[
-                                  id as keyof typeof selectedAnalyses
-                                ] && (
-                                  <CheckCircle2 className="h-3 w-3 text-white" />
-                                )}
+                                <div
+                                  className={cn(
+                                    'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all',
+                                    selectedAnalyses[
+                                      id as keyof typeof selectedAnalyses
+                                    ]
+                                      ? 'border-[#60A5FA] bg-[#1565C0]'
+                                      : 'border-[#1E3048] bg-[#0D1628]',
+                                  )}
+                                >
+                                  {selectedAnalyses[
+                                    id as keyof typeof selectedAnalyses
+                                  ] && (
+                                    <CheckCircle2 className="h-3 w-3 text-white" />
+                                  )}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-[#E8EDF5]">
+                                    <Icon className="h-3.5 w-3.5 text-[#5A7A9A]" />
+                                    {label}
+                                  </span>
+                                  <p className="text-[10px] leading-relaxed text-[#5A7A9A]">
+                                    {desc}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="space-y-0.5">
-                                <span className="flex items-center gap-1.5 text-xs font-semibold text-[#E8EDF5]">
-                                  <Icon className="h-3.5 w-3.5 text-[#5A7A9A]" />
-                                  {label}
-                                </span>
-                                <p className="text-[10px] leading-relaxed text-[#5A7A9A]">
-                                  {desc}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })}
+                        </div>
 
-                      {uploadedMedia && activeStep === 'select' && (
-                        <button
-                          disabled={!hasSelection}
-                          onClick={() => setActiveStep('configure')}
-                          className={cn(
-                            'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white transition-all',
-                            hasSelection
-                              ? 'bg-[#1565C0] hover:bg-[#1976D2]'
-                              : 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-50',
-                          )}
-                        >
-                          Configure Selected Analysis
-                          <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+                        {uploadedMedia && activeStep === 'select' && (
+                          <button
+                            disabled={!hasSelection}
+                            onClick={() => setActiveStep('configure')}
+                            className={cn(
+                              'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white transition-all',
+                              hasSelection
+                                ? 'bg-[#1565C0] hover:bg-[#1976D2]'
+                                : 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-50',
+                            )}
+                          >
+                            Configure Selected Analysis
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Right Column: Previews & Configurations */}
@@ -1012,10 +1133,35 @@ function AnalysisPageContent() {
                                 onClick={() => setActiveStep('select')}
                                 className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
                               >
-                                <ArrowLeft className="h-3.5 w-3.5" /> Back
+                                <ArrowLeft className="h-3.5 w-3.5" /> Back to
+                                select
                               </button>
                             </div>
-                            <ObjectCountConfigTab />
+
+                            {uploadedMedia && (
+                              <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                                <CocoCategorySelection
+                                  selectedCustomClasses={
+                                    ocSelectedCustomClasses
+                                  }
+                                  setSelectedCustomClasses={
+                                    setOcSelectedCustomClasses
+                                  }
+                                  toggleCustomClass={toggleCustomClass}
+                                  customSearchQuery={ocCustomSearchQuery}
+                                  setCustomSearchQuery={setOcCustomSearchQuery}
+                                />
+                                <div className="mt-4 flex justify-end border-t border-[#1E3048]/40 pt-2">
+                                  <button
+                                    onClick={() => setActiveStep('run')}
+                                    className="flex items-center gap-1.5 rounded-lg bg-[#1565C0] px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2]"
+                                  >
+                                    Next: Model Parameters
+                                    <ArrowRight className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1037,33 +1183,91 @@ function AnalysisPageContent() {
                           </div>
                         )}
 
-                        {/* Unified Run Button */}
-                        <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                          <button
-                            disabled={running || isPersonAnalysisConfiguring}
-                            onClick={runAnalyses}
-                            className={cn(
-                              'flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all',
-                              isPersonAnalysisConfiguring
-                                ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-60'
-                                : 'bg-[#1565C0] shadow-[#1565C0]/20 hover:bg-[#1976D2]',
+                        {/* Unified Run Button for non-Object Count analyses */}
+                        {!selectedAnalyses.objectCount && (
+                          <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                            <button
+                              disabled={running || isPersonAnalysisConfiguring}
+                              onClick={runAnalyses}
+                              className={cn(
+                                'flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all',
+                                isPersonAnalysisConfiguring
+                                  ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-60'
+                                  : 'bg-[#1565C0] shadow-[#1565C0]/20 hover:bg-[#1976D2]',
+                              )}
+                            >
+                              {running ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Triggering Analyses...
+                                </>
+                              ) : isPersonAnalysisConfiguring ? (
+                                'Complete Person Analysis Setup (in Configuration tab above)'
+                              ) : (
+                                <>
+                                  <Play className="h-4 w-4 fill-current" />
+                                  Run Selected Analyses
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {activeStep === 'run' && (
+                      <div className="space-y-6">
+                        {selectedAnalyses.objectCount && (
+                          <div className="object-counting-config-wrapper space-y-4">
+                            <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                              <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                                <BarChart2 className="h-4 w-4 text-[#1565C0]" />
+                                Run Object Count
+                              </h2>
+                              <button
+                                onClick={() => setActiveStep('configure')}
+                                className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
+                              >
+                                <ArrowLeft className="h-3.5 w-3.5" /> Back to
+                                categories
+                              </button>
+                            </div>
+
+                            {uploadedMedia && (
+                              <AdvancedConfiguration
+                                confidenceThreshold={ocConfidence}
+                                setConfidenceThreshold={setOcConfidence}
+                                minTrackFrames={ocMinTrackFrames}
+                                setMinTrackFrames={setOcMinTrackFrames}
+                                trackBuffer={ocTrackBuffer}
+                                setTrackBuffer={setOcTrackBuffer}
+                                gmcMethod={ocGmc}
+                                setGmcMethod={setOcGmc}
+                                imgsz={ocResolution}
+                                setImgsz={setOcResolution}
+                                device={ocDevice}
+                                setDevice={setOcDevice}
+                                availableReidClasses={availableReidClasses}
+                                reidClasses={ocReidClasses}
+                                setReidClasses={setOcReidClasses}
+                                details={
+                                  {
+                                    id: uploadedMedia.id,
+                                    status: 'pending',
+                                  } as any
+                                }
+                                triggeringAnalysisId={
+                                  running ? uploadedMedia.id : null
+                                }
+                                handleTriggerAnalysis={runAnalyses}
+                                trackPeople={ocTrackPeople}
+                                trackVehicles={ocTrackVehicles}
+                                trackCustom={ocTrackCustom}
+                                selectedCustomClasses={ocSelectedCustomClasses}
+                              />
                             )}
-                          >
-                            {running ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Triggering Analyses...
-                              </>
-                            ) : isPersonAnalysisConfiguring ? (
-                              'Complete Person Analysis Setup (in Configuration tab above)'
-                            ) : (
-                              <>
-                                <Play className="h-4 w-4 fill-current" />
-                                Run Selected Analyses
-                              </>
-                            )}
-                          </button>
-                        </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1072,6 +1276,15 @@ function AnalysisPageContent() {
             </div>
           )}
         </>
+      )}
+      {ocIsDrawingModalOpen && uploadedMedia && (
+        <DrawingModal
+          onClose={() => setOcIsDrawingModalOpen(false)}
+          mediaUrl={`${BACKEND_URL}/${uploadedMedia.filepath}`}
+          mediaType={uploadedMedia.media_type}
+          onSave={(coords) => setOcLineCoords(coords)}
+          initialCoords={ocLineCoords}
+        />
       )}
     </div>
   );

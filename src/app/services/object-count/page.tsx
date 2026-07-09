@@ -45,15 +45,16 @@ import type {
   ObjectTrackResult,
 } from '@/types/objectcount';
 import { COCO_CLASSES } from '@/lib/services';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import TrackerConfiguration from './components/TrackerConfiguration';
+import AdvancedConfiguration from './components/AdvancedConfiguration';
+import DrawingModal from './components/DrawingModal';
+import AnalyticsCards from './components/AnalyticsCards';
+import EntryExitSummary from './components/EntryExitSummary';
+import VideoPreviewHUD from './components/VideoPreviewHUD';
+import CategoryDistribution from './components/CategoryDistribution';
+import DemographicsSummary from './components/DemographicsSummary';
+import LineCrossingBreakdown from './components/LineCrossingBreakdown';
+import TimelineResults from './components/TimelineResults';
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
@@ -138,6 +139,7 @@ export default function ObjectCountPage() {
   const [gmcMethod, setGmcMethod] = useState<string>('none');
   const [imgsz, setImgsz] = useState<number>(480);
   const [reidClasses, setReidClasses] = useState<string[]>(['person']);
+  const [device, setDevice] = useState<string | null>(null);
 
   // Helper to compute active classes being tracked
   const getActiveClassesToTrack = useCallback((): string[] => {
@@ -238,6 +240,8 @@ export default function ObjectCountPage() {
     );
     setEntryExitReport(!!details.entry_exit_report);
     setLineCoords(details.line_coords || null);
+    setDevice((details as any).device || null);
+    setImgsz((details as any).imgsz || 480);
   }, [details]);
 
   // Fetch all media
@@ -417,6 +421,7 @@ export default function ObjectCountPage() {
       gmc_method: gmcMethod,
       reid_classes: reidClasses.length > 0 ? reidClasses : null,
       imgsz: imgsz,
+      device: device,
     };
 
     try {
@@ -445,11 +450,6 @@ export default function ObjectCountPage() {
   // Handle single deletion
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (
-      !confirm('Are you sure you want to delete this media tracking record?')
-    ) {
-      return;
-    }
     try {
       await deleteObjectCountMedia(id);
       toast.success('Media record deleted');
@@ -849,487 +849,71 @@ export default function ObjectCountPage() {
               </div>
 
               {/* AI Tracking Configuration */}
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* Left Column: Form Settings */}
-                <div className="space-y-6 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5 lg:col-span-2">
-                  <div className="flex items-center gap-1.5 border-b border-[#1E3048] pb-3">
-                    <Settings2 className="h-5 w-5 text-[#1565C0]" />
-                    <div>
-                      <h3 className="text-sm font-semibold text-[#E8EDF5]">
-                        AI Tracking Configuration
-                      </h3>
-                      <p className="text-[11px] text-[#5A7A9A]">
-                        Configure tracking parameters and models before firing
-                        the background task.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Presets Grid */}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      {/* Preset: People */}
-                      <div
-                        className={cn(
-                          'cursor-pointer rounded-lg border p-4 transition-colors',
-                          trackPeople
-                            ? 'border-[#1565C0]/50 bg-[#1565C0]/5'
-                            : 'border-[#1E3048] bg-[#0A0F1E] hover:border-[#1E3048]/80',
-                        )}
-                        onClick={() => setTrackPeople(!trackPeople)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={trackPeople}
-                            onChange={() => {}} // Managed by parent click
-                            className="mt-1 h-3.5 w-3.5 rounded border-[#1E3048] text-[#1565C0] focus:ring-[#1565C0]"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#E8EDF5]">
-                              <Users className="h-3.5 w-3.5 text-[#1565C0]" />
-                              Track People
-                            </label>
-                            <p className="mt-1 text-[10px] leading-relaxed text-[#5A7A9A]">
-                              Detect and count pedestrians, customers, or
-                              occupants (`person` category).
-                            </p>
-                          </div>
-                        </div>
-
-                        {trackPeople && (
-                          <div
-                            className="mt-3.5 space-y-2 border-t border-[#1E3048] pt-3.5 pl-6"
-                            onClick={(e) => e.stopPropagation()} // Stop toggle tracking
-                          >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id="classifyGender"
-                                checked={classifyGender}
-                                onChange={(e) =>
-                                  setClassifyGender(e.target.checked)
-                                }
-                                className="h-3.5 w-3.5 rounded border-[#1E3048] text-[#1565C0] focus:ring-[#1565C0]"
-                              />
-                              <label
-                                htmlFor="classifyGender"
-                                className="flex cursor-pointer items-center gap-1 text-[11px] font-medium text-[#E8EDF5]"
-                              >
-                                <Sparkles className="h-3 w-3 text-[#60A5FA]" />
-                                Gender Classification (InsightFace)
-                              </label>
-                            </div>
-                            <p className="text-[9px] leading-relaxed text-[#5A7A9A]">
-                              Classifies cropped head-crops into Male and Female
-                              demographics.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Preset: Vehicles */}
-                      <div
-                        className={cn(
-                          'cursor-pointer rounded-lg border p-4 transition-colors',
-                          trackVehicles
-                            ? 'border-[#1565C0]/50 bg-[#1565C0]/5'
-                            : 'border-[#1E3048] bg-[#0A0F1E] hover:border-[#1E3048]/80',
-                        )}
-                        onClick={() => setTrackVehicles(!trackVehicles)}
-                      >
-                        <div className="flex items-start gap-3">
-                          <input
-                            type="checkbox"
-                            checked={trackVehicles}
-                            onChange={() => {}} // Managed by parent click
-                            className="mt-1 h-3.5 w-3.5 rounded border-[#1E3048] text-[#1565C0] focus:ring-[#1565C0]"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#E8EDF5]">
-                              <Car className="h-3.5 w-3.5 text-[#1565C0]" />
-                              Track Vehicles
-                            </label>
-                            <p className="mt-1 text-[10px] leading-relaxed text-[#5A7A9A]">
-                              Detect and count traffic flows (`car`, `truck`,
-                              `bus`, `motorcycle`, `bicycle`).
-                            </p>
-                          </div>
-                        </div>
-
-                        {trackVehicles && (
-                          <div
-                            className="mt-3.5 space-y-2 border-t border-[#1E3048] pt-3.5 pl-6"
-                            onClick={(e) => e.stopPropagation()} // Stop toggle tracking
-                          >
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id="classifyVehicle"
-                                checked={classifyVehicle}
-                                onChange={(e) =>
-                                  setClassifyVehicle(e.target.checked)
-                                }
-                                className="h-3.5 w-3.5 rounded border-[#1E3048] text-[#1565C0] focus:ring-[#1565C0]"
-                              />
-                              <label
-                                htmlFor="classifyVehicle"
-                                className="cursor-pointer text-[11px] font-medium text-[#E8EDF5]"
-                              >
-                                Vehicle Subclass Classification
-                              </label>
-                            </div>
-                            <p className="text-[9px] leading-relaxed text-[#5A7A9A]">
-                              Preserves class breakdown (car, truck, bike). If
-                              disabled, simplifies all to a generic
-                              &quot;vehicle&quot; tracker label.
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Entry & Exit Crossing Line Preset */}
-                    <div
-                      className={cn(
-                        'cursor-pointer rounded-lg border p-4 transition-colors',
-                        entryExitReport
-                          ? 'border-[#1565C0]/50 bg-[#1565C0]/5'
-                          : 'border-[#1E3048] bg-[#0A0F1E] hover:border-[#1E3048]/80',
-                      )}
-                      onClick={() => {
-                        const nextVal = !entryExitReport;
-                        setEntryExitReport(nextVal);
-                        if (nextVal) {
-                          setIsDrawingModalOpen(true);
-                        } else {
-                          setLineCoords(null);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={entryExitReport}
-                          onChange={() => {}} // Managed by click
-                          className="mt-1 h-3.5 w-3.5 rounded border-[#1E3048] text-[#1565C0] focus:ring-[#1565C0]"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <label className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#E8EDF5]">
-                            <Activity className="h-3.5 w-3.5 text-[#1565C0]" />
-                            Entry & Exit Line Crossing Report
-                          </label>
-                          <p className="mt-1 text-[10px] leading-relaxed text-[#5A7A9A]">
-                            Configure a crossing gate line. Detects and logs
-                            IN/OUT count directions for tracked objects.
-                          </p>
-                        </div>
-                      </div>
-
-                      {entryExitReport && (
-                        <div
-                          className="mt-3.5 flex items-center justify-between border-t border-[#1E3048]/60 pt-3.5 pl-6"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <span className="text-[11px] text-[#E8EDF5]">
-                            {lineCoords
-                              ? `Line defined: [(${lineCoords[0][0]}, ${lineCoords[0][1]}), (${lineCoords[1][0]}, ${lineCoords[1][1]})]`
-                              : 'No custom line drawn. Defaults to middle horizontal line.'}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setIsDrawingModalOpen(true)}
-                            className="rounded bg-[#1E3048] px-2.5 py-1 text-[10px] font-semibold text-[#60A5FA] transition-colors hover:bg-[#1E3048]/80"
-                          >
-                            {lineCoords ? 'Redraw Line' : 'Draw Line'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Custom Category Selection Toggle */}
-                    <div className="overflow-hidden rounded-lg border border-[#1E3048] bg-[#0A0F1E]">
-                      <div
-                        className="flex cursor-pointer items-center justify-between border-b border-[#1E3048] px-4 py-3 hover:bg-[#1E3048]/30"
-                        onClick={() => setTrackCustom(!trackCustom)}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Layers className="h-4 w-4 text-[#1565C0]" />
-                          <span className="text-xs font-semibold text-[#E8EDF5]">
-                            Track Custom COCO Categories (
-                            {selectedCustomClasses.length})
-                          </span>
-                        </div>
-                        <span className="rounded bg-[#1E3048] px-2 py-0.5 text-[10px] font-bold text-[#E8EDF5]">
-                          {trackCustom
-                            ? 'Hide List'
-                            : 'Expand Classes (74 more)'}
-                        </span>
-                      </div>
-
-                      {trackCustom && (
-                        <div className="space-y-3 p-4">
-                          <div className="flex gap-2">
-                            <div className="relative flex-1">
-                              <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-[#5A7A9A]" />
-                              <input
-                                type="text"
-                                placeholder="Search 74 COCO classes (e.g. dog, backpack, chair)..."
-                                value={customSearchQuery}
-                                onChange={(e) =>
-                                  setCustomSearchQuery(e.target.value)
-                                }
-                                className="h-8.5 w-full rounded-md border border-[#1E3048] bg-[#0D1628] pr-3 pl-8.5 text-xs text-[#E8EDF5] placeholder-[#5A7A9A] focus:border-[#1565C0] focus:outline-none"
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedCustomClasses([])}
-                              className="rounded-md border border-[#1E3048] bg-[#0D1628] px-2.5 py-1 text-[10px] font-medium text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-                            >
-                              Clear All
-                            </button>
-                          </div>
-
-                          <div className="grid max-h-36 grid-cols-2 gap-2 overflow-y-auto rounded-md border border-[#1E3048]/60 bg-[#0D1628]/40 p-2 pr-1">
-                            {filteredCocoClasses.map((cls) => {
-                              const selected =
-                                selectedCustomClasses.includes(cls);
-                              return (
-                                <div
-                                  key={cls}
-                                  onClick={() => toggleCustomClass(cls)}
-                                  className={cn(
-                                    'flex cursor-pointer items-center gap-2 rounded border px-2 py-1 text-xs transition-colors',
-                                    selected
-                                      ? 'border-[#1565C0]/40 bg-[#1565C0]/15 text-[#60A5FA]'
-                                      : 'border-transparent text-[#5A7A9A] hover:bg-[#1E3048]/40 hover:text-[#E8EDF5]',
-                                  )}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selected}
-                                    readOnly
-                                    className="h-3 w-3 rounded border-[#1E3048] text-[#1565C0]"
-                                  />
-                                  <span className="truncate">{cls}</span>
-                                </div>
-                              );
-                            })}
-                            {filteredCocoClasses.length === 0 && (
-                              <div className="col-span-2 py-4 text-center text-xs text-[#5A7A9A]">
-                                No classes matching &quot;{customSearchQuery}
-                                &quot;
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column: Advanced & Action */}
-                <div className="space-y-6 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                  <div className="flex items-center gap-1.5 border-b border-[#1E3048] pb-3 text-[#E8EDF5]">
-                    <Sliders className="h-4 w-4 text-[#1565C0]" />
-                    <h3 className="text-xs font-semibold tracking-wider uppercase">
-                      Advanced settings
-                    </h3>
-                  </div>
-
-                  {/* Confidence Threshold */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-[#5A7A9A]">
-                        Detection Confidence
-                      </span>
-                      <span className="font-semibold text-[#E8EDF5]">
-                        {confidenceThreshold.toFixed(2)}
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.10"
-                      max="1.00"
-                      step="0.05"
-                      value={confidenceThreshold}
-                      onChange={(e) =>
-                        setConfidenceThreshold(parseFloat(e.target.value))
-                      }
-                      className="w-full accent-[#1565C0]"
-                    />
-                    <div className="flex justify-between text-[9px] text-[#5A7A9A]/60">
-                      <span>0.10 (More matches)</span>
-                      <span>1.00 (Strictly precise)</span>
-                    </div>
-                  </div>
-
-                  {/* Min Track Frames */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-[#5A7A9A]">
-                      Min Track Duration (Frames)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={minTrackFrames}
-                      onChange={(e) =>
-                        setMinTrackFrames(parseInt(e.target.value) || 1)
-                      }
-                      className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
-                    />
-                    <p className="text-[10px] text-[#5A7A9A]/60">
-                      Minimum frames active before track is saved. Helps filter
-                      momentary false detections.
-                    </p>
-                  </div>
-
-                  {/* Track Buffer */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-[#5A7A9A]">
-                      Track Memory Buffer (Frames)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={trackBuffer}
-                      onChange={(e) =>
-                        setTrackBuffer(parseInt(e.target.value) || 1)
-                      }
-                      className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
-                    />
-                    <p className="text-[10px] text-[#5A7A9A]/60">
-                      Buffer frames to remember and stitch a temporarily
-                      occluded object track.
-                    </p>
-                  </div>
-
-                  {/* Global Motion Compensation */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-[#5A7A9A]">
-                      Global Motion Compensation (GMC)
-                    </label>
-                    <select
-                      value={gmcMethod}
-                      onChange={(e) => setGmcMethod(e.target.value)}
-                      className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
-                    >
-                      <option value="none">None (Disabled)</option>
-                      <option value="ortho">Ortho</option>
-                      <option value="aff_sift">Aff Sift</option>
-                      <option value="ecc">ECC</option>
-                      <option value="sparseOptFlow">Sparse Optical Flow</option>
-                    </select>
-                    <p className="text-[10px] text-[#5A7A9A]/60">
-                      Compensates camera movement (e.g. pan, tilt, zoom) to
-                      stabilize object tracking.
-                    </p>
-                  </div>
-
-                  {/* YOLO Image Size */}
-                  <div className="space-y-1">
-                    <label className="text-xs text-[#5A7A9A]">
-                      YOLO Image Size (Resolution)
-                    </label>
-                    <select
-                      value={imgsz}
-                      onChange={(e) => setImgsz(parseInt(e.target.value))}
-                      className="w-full rounded-md border border-[#1E3048] bg-[#0A0F1E] px-3 py-1.5 text-xs text-[#E8EDF5] focus:border-[#1565C0] focus:outline-none"
-                    >
-                      <option value={320}>320 x 320</option>
-                      <option value={480}>480 x 480 (Default)</option>
-                      <option value={640}>640 x 640</option>
-                      <option value={1280}>1280 x 1280</option>
-                    </select>
-                    <p className="text-[10px] text-[#5A7A9A]/60">
-                      Higher resolution improves detection of small objects but
-                      runs slower.
-                    </p>
-                  </div>
-
-                  {/* Re-ID Feature Extraction Classes */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs text-[#5A7A9A]">
-                      Re-ID Tracking Classes
-                    </label>
-                    <div className="max-h-32 space-y-2 overflow-y-auto rounded-md border border-[#1E3048] bg-[#0A0F1E] p-2.5">
-                      {availableReidClasses.map((cls) => {
-                        const isChecked = reidClasses.includes(cls);
-                        return (
-                          <label
-                            key={cls}
-                            className="flex cursor-pointer items-center gap-2 text-[11px] text-[#E8EDF5]"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {
-                                if (isChecked) {
-                                  setReidClasses(
-                                    reidClasses.filter((c) => c !== cls),
-                                  );
-                                } else {
-                                  setReidClasses([...reidClasses, cls]);
-                                }
-                              }}
-                              className="h-3.5 w-3.5 rounded border-[#1E3048] text-[#1565C0] focus:ring-[#1565C0]"
-                            />
-                            <span className="capitalize">{cls}</span>
-                          </label>
-                        );
-                      })}
-                      {availableReidClasses.length === 0 && (
-                        <div className="text-[10px] text-[#5A7A9A] italic">
-                          No active classes to select
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[9px] leading-relaxed text-[#5A7A9A]/60">
-                      Enables Re-ID feature extraction to link occluded tracks.
-                      Re-ID is optimized for &apos;person&apos;.
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    {details.status === 'failed' && (
-                      <div className="mb-4 flex items-start gap-2 rounded border border-red-400/15 bg-red-400/5 p-3 text-[11px] text-red-400">
-                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                        <span>
-                          Previous tracker run failed. You can tweak thresholds
-                          and trigger a new analysis queue.
-                        </span>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => handleTriggerAnalysis(details.id)}
-                      disabled={
-                        triggeringAnalysisId !== null ||
-                        details.status === 'processing' ||
-                        (!trackPeople &&
-                          !trackVehicles &&
-                          (!trackCustom || selectedCustomClasses.length === 0))
-                      }
-                      className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#1565C0] text-sm font-semibold text-white transition-colors hover:bg-[#1565C0]/90 disabled:pointer-events-none disabled:opacity-40"
-                    >
-                      {triggeringAnalysisId !== null ||
-                      details.status === 'processing' ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          {details.status === 'processing'
-                            ? 'Processing...'
-                            : 'Triggering...'}
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 fill-white" />
-                          Run Object Tracking
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <TrackerConfiguration
+                  trackPeople={trackPeople}
+                  setTrackPeople={setTrackPeople}
+                  classifyGender={classifyGender}
+                  setClassifyGender={setClassifyGender}
+                  trackVehicles={trackVehicles}
+                  setTrackVehicles={setTrackVehicles}
+                  classifyVehicle={classifyVehicle}
+                  setClassifyVehicle={setClassifyVehicle}
+                  entryExitReport={entryExitReport}
+                  setEntryExitReport={setEntryExitReport}
+                  lineCoords={lineCoords}
+                  setLineCoords={setLineCoords}
+                  setIsDrawingModalOpen={setIsDrawingModalOpen}
+                  trackCustom={trackCustom}
+                  setTrackCustom={setTrackCustom}
+                  customSearchQuery={customSearchQuery}
+                  setCustomSearchQuery={setCustomSearchQuery}
+                  selectedCustomClasses={selectedCustomClasses}
+                  toggleCustomClass={toggleCustomClass}
+                  filteredCocoClasses={filteredCocoClasses}
+                  confidenceThreshold={confidenceThreshold}
+                  setConfidenceThreshold={setConfidenceThreshold}
+                  minTrackFrames={minTrackFrames}
+                  setMinTrackFrames={setMinTrackFrames}
+                  trackBuffer={trackBuffer}
+                  setTrackBuffer={setTrackBuffer}
+                  gmcMethod={gmcMethod}
+                  setGmcMethod={setGmcMethod}
+                  imgsz={imgsz}
+                  setImgsz={setImgsz}
+                  device={device}
+                  setDevice={setDevice}
+                  availableReidClasses={availableReidClasses}
+                  reidClasses={reidClasses}
+                  setReidClasses={setReidClasses}
+                  details={details}
+                  triggeringAnalysisId={triggeringAnalysisId}
+                  handleTriggerAnalysis={handleTriggerAnalysis}
+                />
+                <AdvancedConfiguration
+                  confidenceThreshold={confidenceThreshold}
+                  setConfidenceThreshold={setConfidenceThreshold}
+                  minTrackFrames={minTrackFrames}
+                  setMinTrackFrames={setMinTrackFrames}
+                  trackBuffer={trackBuffer}
+                  setTrackBuffer={setTrackBuffer}
+                  gmcMethod={gmcMethod}
+                  setGmcMethod={setGmcMethod}
+                  imgsz={imgsz}
+                  setImgsz={setImgsz}
+                  device={device}
+                  setDevice={setDevice}
+                  availableReidClasses={availableReidClasses}
+                  reidClasses={reidClasses}
+                  setReidClasses={setReidClasses}
+                  details={details}
+                  triggeringAnalysisId={triggeringAnalysisId}
+                  handleTriggerAnalysis={handleTriggerAnalysis}
+                  trackPeople={trackPeople}
+                  trackVehicles={trackVehicles}
+                  trackCustom={trackCustom}
+                  selectedCustomClasses={selectedCustomClasses}
+                />
               </div>
             </>
           ) : (
@@ -1450,6 +1034,18 @@ export default function ObjectCountPage() {
                       </p>
                     </div>
 
+                    {details.classify_gender && (
+                      <div className="mt-3 flex max-w-sm items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-left text-[11px] leading-normal text-amber-400/90">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                        <span>
+                          <strong>Demographics Active:</strong> Gender
+                          classification (InsightFace) is enabled. Extracting
+                          head crops and running demographics classification is
+                          a heavy task and will take more time.
+                        </span>
+                      </div>
+                    )}
+
                     <p className="mt-4 animate-pulse text-[10px] text-[#5A7A9A]/60">
                       This page will auto-refresh once results are processed by
                       the worker.
@@ -1459,527 +1055,132 @@ export default function ObjectCountPage() {
               ) : details.status === 'completed' ? (
                 /* ── Case 3: Completed State Report ── */
                 <div className="space-y-6">
-                  {/* Metrics Grid */}
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                    {/* Total unique objects */}
-                    <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4 text-center">
-                      <p className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
-                        Total Unique Tracked
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-[#E8EDF5]">
-                        {details.total_objects_count ?? '—'}
-                      </p>
-                    </div>
+                  <AnalyticsCards
+                    totalUniqueTracked={details.total_objects_count}
+                    peakConcurrency={details.peak_objects_count}
+                    avgConcurrency={details.average_objects_count}
+                    videoDurationSeconds={details.video_duration_seconds}
+                  />
 
-                    {/* Peak concurrent objects */}
-                    <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4 text-center">
-                      <p className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
-                        Peak Concurrency
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-[#E8EDF5]">
-                        {details.peak_objects_count ?? '—'}
-                      </p>
-                    </div>
-
-                    {/* Average concurrent objects */}
-                    <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4 text-center">
-                      <p className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
-                        Average Concurrency
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-[#E8EDF5]">
-                        {details.average_objects_count !== null
-                          ? details.average_objects_count.toFixed(2)
-                          : '—'}
-                      </p>
-                    </div>
-
-                    {/* Video Duration */}
-                    <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4 text-center">
-                      <p className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
-                        Footage Duration
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-[#E8EDF5]">
-                        {details.video_duration_seconds !== null
-                          ? `${details.video_duration_seconds.toFixed(2)}s`
-                          : '—'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Line Crossing Analytics Overview */}
                   {details.report_summary?.line_crossing_analytics && (
-                    <div className="grid grid-cols-1 gap-4 rounded-xl border border-dashed border-[#F59E0B]/30 bg-[#F59E0B]/5 p-4 md:grid-cols-2">
-                      <div className="flex items-center justify-between p-2">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
-                            <Activity className="h-5 w-5 rotate-90" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
-                              Total Entries (IN)
-                            </p>
-                            <p className="mt-0.5 text-xl font-bold text-[#E8EDF5]">
-                              {
-                                details.report_summary.line_crossing_analytics
-                                  .total_entries
-                              }
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-[#5A7A9A]">
-                          Across crossing gate
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-[#1E3048]/60 p-2 md:border-t-0 md:border-l">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-400/10 text-red-400">
-                            <Activity className="h-5 w-5 -rotate-90" />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
-                              Total Exits (OUT)
-                            </p>
-                            <p className="mt-0.5 text-xl font-bold text-[#E8EDF5]">
-                              {
-                                details.report_summary.line_crossing_analytics
-                                  .total_exits
-                              }
-                            </p>
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-[#5A7A9A]">
-                          Across crossing gate
-                        </span>
-                      </div>
-                    </div>
+                    <EntryExitSummary
+                      totalEntries={
+                        details.report_summary.line_crossing_analytics
+                          .total_entries
+                      }
+                      totalExits={
+                        details.report_summary.line_crossing_analytics
+                          .total_exits
+                      }
+                    />
                   )}
 
                   {/* Main Analysis Pane */}
                   <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                     {/* Left Pane: Media Player & Breakdown Charts */}
                     <div className="space-y-6 lg:col-span-2">
-                      <div className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0A0F1E] shadow-lg">
-                        <div className="flex items-center justify-between border-b border-[#1E3048] bg-[#0D1628] px-4 py-2.5">
-                          <div className="flex items-center gap-2">
-                            <Tv className="h-4 w-4 text-[#1565C0]" />
-                            <span className="text-xs font-semibold text-[#E8EDF5]">
-                              Annotated Tracking HUD Player
-                            </span>
-                          </div>
-                          {/* Re-trigger config */}
-                          <button
-                            onClick={() => {
-                              // Reset state variables to match currently selected media details
-                              setTrackPeople(
-                                details.classes_to_track
-                                  ? details.classes_to_track.includes('person')
-                                  : true,
-                              );
-                              setClassifyGender(details.classify_gender);
-                              setTrackVehicles(
-                                details.classes_to_track
-                                  ? details.classes_to_track.some((c) =>
-                                      [
-                                        'car',
-                                        'truck',
-                                        'bus',
-                                        'motorcycle',
-                                        'bicycle',
-                                      ].includes(c),
-                                    )
-                                  : true,
-                              );
-                              setClassifyVehicle(details.classify_vehicle);
-                              setTrackCustom(
-                                !!details.classes_to_track &&
-                                  details.classes_to_track.some(
-                                    (c) =>
-                                      c !== 'person' &&
-                                      ![
-                                        'car',
-                                        'truck',
-                                        'bus',
-                                        'motorcycle',
-                                        'bicycle',
-                                      ].includes(c),
-                                  ),
-                              );
-                              setSelectedCustomClasses(
-                                details.classes_to_track
-                                  ? details.classes_to_track.filter(
-                                      (c) =>
-                                        c !== 'person' &&
-                                        ![
-                                          'car',
-                                          'truck',
-                                          'bus',
-                                          'motorcycle',
-                                          'bicycle',
-                                        ].includes(c),
-                                    )
-                                  : [],
-                              );
-                              setEntryExitReport(!!details.entry_exit_report);
-                              setLineCoords(details.line_coords || null);
-                              setGmcMethod('none');
-                              setImgsz(480);
-                              setReidClasses(['person']);
+                      <VideoPreviewHUD
+                        processedFilepath={details.processed_filepath}
+                        mediaType={details.media_type}
+                        filepath={details.filepath}
+                        backendUrl={BACKEND_URL}
+                        videoRef={videoRef}
+                        onReconfigure={() => {
+                          // Reset state variables to match currently selected media details
+                          setTrackPeople(
+                            details.classes_to_track
+                              ? details.classes_to_track.includes('person')
+                              : true,
+                          );
+                          setClassifyGender(details.classify_gender);
+                          setTrackVehicles(
+                            details.classes_to_track
+                              ? details.classes_to_track.some((c) =>
+                                  [
+                                    'car',
+                                    'truck',
+                                    'bus',
+                                    'motorcycle',
+                                    'bicycle',
+                                  ].includes(c),
+                                )
+                              : true,
+                          );
+                          setClassifyVehicle(details.classify_vehicle);
+                          setTrackCustom(
+                            !!details.classes_to_track &&
+                              details.classes_to_track.some(
+                                (c) =>
+                                  c !== 'person' &&
+                                  ![
+                                    'car',
+                                    'truck',
+                                    'bus',
+                                    'motorcycle',
+                                    'bicycle',
+                                  ].includes(c),
+                              ),
+                          );
+                          setSelectedCustomClasses(
+                            details.classes_to_track
+                              ? details.classes_to_track.filter(
+                                  (c) =>
+                                    c !== 'person' &&
+                                    ![
+                                      'car',
+                                      'truck',
+                                      'bus',
+                                      'motorcycle',
+                                      'bicycle',
+                                    ].includes(c),
+                                )
+                              : [],
+                          );
+                          setEntryExitReport(!!details.entry_exit_report);
+                          setLineCoords(details.line_coords || null);
+                          setGmcMethod('none');
+                          setImgsz(480);
+                          setReidClasses(['person']);
 
-                              // Switch to search tab to re-configure
-                              setTab('search');
-                            }}
-                            className="flex items-center gap-1.5 rounded border border-[#1E3048] bg-[#0A0F1E] px-2 py-1 text-[10px] font-semibold text-[#E8EDF5] hover:bg-[#1E3048]"
-                          >
-                            <RotateCcw className="h-3 w-3" />
-                            Re-configure Tracker
-                          </button>
-                        </div>
-
-                        <div className="relative flex aspect-video w-full items-center justify-center bg-black">
-                          {details.processed_filepath ? (
-                            details.media_type === 'video' ? (
-                              <video
-                                ref={videoRef}
-                                src={`${BACKEND_URL}/${details.processed_filepath}`}
-                                controls
-                                className="h-full w-full object-contain"
-                              />
-                            ) : (
-                              <div className="relative h-full w-full">
-                                <Image
-                                  src={`${BACKEND_URL}/${details.processed_filepath}`}
-                                  alt="Annotated static photo"
-                                  fill
-                                  className="object-contain"
-                                />
-                              </div>
-                            )
-                          ) : (
-                            <div className="text-center text-sm text-[#5A7A9A]">
-                              No annotated processed source path returned by the
-                              worker.
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                          // Switch to search tab to re-configure
+                          setTab('search');
+                        }}
+                      />
 
                       {/* Breakdown charts */}
                       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                        {/* Object count breakdown chart */}
-                        <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                          <div>
-                            <h3 className="text-xs font-semibold tracking-wider text-[#E8EDF5] uppercase">
-                              Category Distribution
-                            </h3>
-                            <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
-                              Comparison of unique track counts detected per
-                              class category.
-                            </p>
-                          </div>
+                        <CategoryDistribution
+                          classBreakdownData={classBreakdownData}
+                          totalObjectsCount={details.total_objects_count || 1}
+                        />
 
-                          {classBreakdownData.length > 0 ? (
-                            <div className="space-y-4">
-                              <ResponsiveContainer width="100%" height={160}>
-                                <BarChart
-                                  data={classBreakdownData}
-                                  layout="vertical"
-                                  margin={{
-                                    top: 0,
-                                    right: 10,
-                                    left: 35,
-                                    bottom: 0,
-                                  }}
-                                >
-                                  <CartesianGrid
-                                    strokeDasharray="3 3"
-                                    stroke="#1E3048"
-                                    horizontal={false}
-                                  />
-                                  <XAxis
-                                    type="number"
-                                    stroke="#5A7A9A"
-                                    fontSize={10}
-                                    axisLine={false}
-                                    tickLine={false}
-                                  />
-                                  <YAxis
-                                    type="category"
-                                    dataKey="name"
-                                    stroke="#5A7A9A"
-                                    fontSize={10}
-                                    axisLine={false}
-                                    tickLine={false}
-                                  />
-                                  <Tooltip
-                                    contentStyle={{
-                                      background: '#0D1628',
-                                      border: '1px solid #1E3048',
-                                      borderRadius: 6,
-                                      color: '#E8EDF5',
-                                      fontSize: 11,
-                                    }}
-                                  />
-                                  <Bar
-                                    dataKey="count"
-                                    fill="#1565C0"
-                                    radius={[0, 3, 3, 0]}
-                                    barSize={12}
-                                  />
-                                </BarChart>
-                              </ResponsiveContainer>
-
-                              {/* Progress bar visual backup */}
-                              <div className="space-y-2 border-t border-[#1E3048]/60 pt-2">
-                                {classBreakdownData.slice(0, 3).map((item) => {
-                                  const total =
-                                    details.total_objects_count || 1;
-                                  const percent = Math.round(
-                                    (item.count / total) * 100,
-                                  );
-                                  return (
-                                    <div
-                                      key={item.name}
-                                      className="flex items-center justify-between text-[11px]"
-                                    >
-                                      <span className="font-medium text-[#E8EDF5]">
-                                        {item.name}
-                                      </span>
-                                      <div className="mx-3 flex flex-1 items-center gap-2">
-                                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#0A0F1E]">
-                                          <div
-                                            className="h-full bg-[#1565C0]"
-                                            style={{ width: `${percent}%` }}
-                                          />
-                                        </div>
-                                      </div>
-                                      <span className="font-bold text-[#5A7A9A]">
-                                        {item.count}
-                                      </span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex h-40 items-center justify-center text-xs text-[#5A7A9A]">
-                              No classification data logged.
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Gender Demographic report (InsightFace) */}
-                        <div className="flex flex-col justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                          <div>
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-xs font-semibold tracking-wider text-[#E8EDF5] uppercase">
-                                Demographics (insightface)
-                              </h3>
-                              <span className="rounded border border-emerald-500/15 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
-                                {details.classify_gender
-                                  ? 'ACTIVE'
-                                  : 'INACTIVE'}
-                              </span>
-                            </div>
-                            <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
-                              Gender breakdowns identified from facial head
-                              crops of tracked people.
-                            </p>
-                          </div>
-
-                          {details.classify_gender &&
-                          details.report_summary?.gender_breakdown ? (
-                            <div className="my-auto space-y-4 pt-4">
-                              {/* Male / Female bars */}
-                              {Object.entries(
-                                details.report_summary.gender_breakdown,
-                              ).map(([gender, count]) => {
-                                const total =
-                                  Object.values(
-                                    details.report_summary?.gender_breakdown ||
-                                      {},
-                                  ).reduce((a, b) => a + b, 0) || 1;
-                                const percent = Math.round(
-                                  (count / total) * 100,
-                                );
-                                const colorMap: Record<string, string> = {
-                                  male: 'bg-[#1565C0]',
-                                  female: 'bg-pink-500',
-                                  unknown: 'bg-gray-500',
-                                };
-                                return (
-                                  <div key={gender} className="space-y-1">
-                                    <div className="flex justify-between text-xs">
-                                      <span className="font-medium text-[#E8EDF5] capitalize">
-                                        {gender}
-                                      </span>
-                                      <span className="font-semibold text-[#5A7A9A]">
-                                        {count} ({percent}%)
-                                      </span>
-                                    </div>
-                                    <div className="h-2 w-full overflow-hidden rounded-full bg-[#0A0F1E]">
-                                      <div
-                                        className={cn(
-                                          'h-full',
-                                          colorMap[gender] || 'bg-gray-500',
-                                        )}
-                                        style={{ width: `${percent}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : (
-                            <div className="flex flex-1 flex-col items-center justify-center space-y-2 py-6 text-center">
-                              <Users className="h-8 w-8 text-[#1E3048]" />
-                              <p className="max-w-[200px] text-xs text-[#5A7A9A]">
-                                {details.classify_gender
-                                  ? 'No human facial profiles were captured or resolved.'
-                                  : 'InsightFace classification was not toggled in settings.'}
-                              </p>
-                            </div>
-                          )}
-                        </div>
+                        <DemographicsSummary
+                          classifyGender={details.classify_gender}
+                          genderBreakdown={
+                            details.report_summary?.gender_breakdown
+                          }
+                        />
 
                         {/* Line Crossing Class Breakdown Table */}
                         {details.report_summary?.line_crossing_analytics && (
-                          <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5 md:col-span-2">
-                            <div>
-                              <h3 className="text-xs font-semibold tracking-wider text-[#E8EDF5] uppercase">
-                                Line Crossing Class Breakdown
-                              </h3>
-                              <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
-                                Detailed breakdown of entries and exits for each
-                                detected class category.
-                              </p>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                              <table className="w-full border-collapse text-left text-xs text-[#E8EDF5]">
-                                <thead>
-                                  <tr className="border-b border-[#1E3048] font-semibold text-[#5A7A9A]">
-                                    <th className="py-2">Category</th>
-                                    <th className="py-2 text-right">
-                                      Entries (IN)
-                                    </th>
-                                    <th className="py-2 text-right">
-                                      Exits (OUT)
-                                    </th>
-                                    <th className="py-2 text-right">
-                                      Total Crossings
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#1E3048]/60">
-                                  {Object.entries(
-                                    details.report_summary
-                                      .line_crossing_analytics.class_breakdown,
-                                  ).map(([cname, counts]) => {
-                                    const total = counts.entry + counts.exit;
-                                    return (
-                                      <tr
-                                        key={cname}
-                                        className="transition-colors hover:bg-[#1E3048]/25"
-                                      >
-                                        <td className="flex items-center gap-1.5 py-2.5 font-medium capitalize">
-                                          {cname === 'person' ? (
-                                            <Users className="h-3.5 w-3.5 text-[#1565C0]" />
-                                          ) : (
-                                            <Car className="h-3.5 w-3.5 text-[#1565C0]" />
-                                          )}
-                                          {cname}
-                                        </td>
-                                        <td className="py-2.5 text-right font-bold text-emerald-400">
-                                          +{counts.entry}
-                                        </td>
-                                        <td className="py-2.5 text-right font-bold text-red-400">
-                                          -{counts.exit}
-                                        </td>
-                                        <td className="py-2.5 text-right text-[#5A7A9A]">
-                                          {total}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
+                          <LineCrossingBreakdown
+                            classBreakdown={
+                              details.report_summary.line_crossing_analytics
+                                .class_breakdown
+                            }
+                          />
                         )}
                       </div>
                     </div>
 
                     {/* Right Pane: Tracking Timelines list */}
-                    <div className="flex h-[520px] flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
-                      <div className="flex items-center justify-between border-b border-[#1E3048] px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <Layers className="h-4 w-4 text-[#1565C0]" />
-                          <h3 className="text-xs font-bold tracking-wider text-[#E8EDF5] uppercase">
-                            Timeline Results ({details.results?.length ?? 0})
-                          </h3>
-                        </div>
-                      </div>
-
-                      <div className="flex-1 space-y-3 overflow-y-auto p-4">
-                        {!details.results || details.results.length === 0 ? (
-                          <div className="flex h-full flex-col items-center justify-center space-y-2 text-center text-[#5A7A9A]">
-                            <Activity className="h-8 w-8 text-[#1E3048]" />
-                            <p className="text-xs">
-                              No individual tracking paths detected. Try
-                              lowering the confidence threshold.
-                            </p>
-                          </div>
-                        ) : (
-                          details.results.map((track) => (
-                            <div
-                              key={track.id}
-                              onClick={() => seekVideo(track.start_time)}
-                              className="group/item flex cursor-pointer items-center gap-3 rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-3 transition-all hover:border-[#1565C0]/40"
-                            >
-                              {/* Video frame preview thumbnail placeholder */}
-                              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-[#1E3048] bg-black">
-                                <video
-                                  src={`${BACKEND_URL}/${details.filepath}#t=${track.start_time}`}
-                                  preload="metadata"
-                                  muted
-                                  playsInline
-                                  className="pointer-events-none h-full w-full object-cover"
-                                />
-                              </div>
-
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-bold text-[#E8EDF5] capitalize group-hover/item:text-[#60A5FA]">
-                                  {track.class_name} #{track.track_id}
-                                </p>
-                                <p className="mt-1 text-[10px] text-[#5A7A9A]">
-                                  Frames: {track.first_frame} –{' '}
-                                  {track.last_frame}
-                                </p>
-                                {track.gender && (
-                                  <span className="mt-1 inline-flex items-center rounded bg-pink-500/10 px-1 py-0.5 text-[9px] font-bold text-pink-400">
-                                    {track.gender}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="shrink-0 text-right">
-                                <span className="inline-block rounded bg-[#1565C0]/10 px-2 py-0.5 text-[10px] font-bold text-[#60A5FA]">
-                                  {formatSeconds(track.start_time)} –{' '}
-                                  {formatSeconds(track.end_time)}
-                                </span>
-                                <p className="mt-1 text-[9px] text-[#5A7A9A]/60">
-                                  Active:{' '}
-                                  {(track.end_time - track.start_time).toFixed(
-                                    1,
-                                  )}
-                                  s
-                                </p>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
+                    <TimelineResults
+                      results={details.results}
+                      filepath={details.filepath}
+                      backendUrl={BACKEND_URL}
+                      onSeek={seekVideo}
+                      formatSeconds={formatSeconds}
+                    />
                   </div>
                 </div>
               ) : (
@@ -2014,8 +1215,8 @@ export default function ObjectCountPage() {
 
       {/* Visual Line Drawing Modal */}
       {isDrawingModalOpen && details && (
-        <LineDrawingModal
-          isOpen={isDrawingModalOpen}
+        <DrawingModal
+          initialCoords={lineCoords}
           onClose={() => {
             setIsDrawingModalOpen(false);
           }}
@@ -2037,329 +1238,6 @@ export default function ObjectCountPage() {
         onSelectMedia={handleSelectMedia}
         title="Analysis History"
       />
-    </div>
-  );
-}
-
-interface LineDrawingModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  mediaUrl: string;
-  mediaType: 'photo' | 'video';
-  onSave: (coords: number[][]) => void;
-}
-
-function LineDrawingModal({
-  isOpen,
-  onClose,
-  mediaUrl,
-  mediaType,
-  onSave,
-}: LineDrawingModalProps) {
-  const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const [endPoint, setEndPoint] = useState<{ x: number; y: number } | null>(
-    null,
-  );
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [videoResolution, setVideoResolution] = useState({
-    width: 1280,
-    height: 720,
-  });
-  const [loaded, setLoaded] = useState(false);
-  const [canvasSize, setCanvasSize] = useState<{
-    width: number;
-    height: number;
-  } | null>(null);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Redraw whenever points change
-  const drawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (startPoint) {
-      // Draw end circles
-      ctx.beginPath();
-      ctx.arc(startPoint.x, startPoint.y, 6, 0, 2 * Math.PI);
-      ctx.fillStyle = '#EF4444';
-      ctx.fill();
-
-      if (endPoint) {
-        // Draw line
-        ctx.beginPath();
-        ctx.moveTo(startPoint.x, startPoint.y);
-        ctx.lineTo(endPoint.x, endPoint.y);
-        ctx.strokeStyle = '#F59E0B';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(endPoint.x, endPoint.y, 6, 0, 2 * Math.PI);
-        ctx.fillStyle = '#EF4444';
-        ctx.fill();
-
-        // Draw directions
-        const dx = endPoint.x - startPoint.x;
-        const dy = endPoint.y - startPoint.y;
-        const len = Math.sqrt(dx * dx + dy * dy);
-        if (len > 0) {
-          const nx = -dy / len;
-          const ny = dx / len;
-          const midX = (startPoint.x + endPoint.x) / 2;
-          const midY = (startPoint.y + endPoint.y) / 2;
-
-          ctx.font = 'bold 12px sans-serif';
-
-          // Draw IN label
-          ctx.fillStyle = '#10B981';
-          ctx.fillText('IN', midX + nx * 25 - 6, midY + ny * 25 + 4);
-
-          // Draw OUT label
-          ctx.fillStyle = '#EF4444';
-          ctx.fillText('OUT', midX - nx * 25 - 10, midY - ny * 25 + 4);
-        }
-      }
-    }
-  }, [startPoint, endPoint]);
-
-  // Sync canvas size to display size
-  const syncCanvasSize = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const media =
-      container.querySelector('video') || container.querySelector('img');
-    const canvas = canvasRef.current;
-    if (!media || !canvas) return;
-
-    canvas.width = media.clientWidth;
-    canvas.height = media.clientHeight;
-    setCanvasSize({ width: media.clientWidth, height: media.clientHeight });
-
-    drawCanvas();
-  }, [drawCanvas]);
-
-  // Handle window resizing
-  useEffect(() => {
-    if (isOpen && loaded) {
-      window.addEventListener('resize', syncCanvasSize);
-      // Let layout settle
-      const t = setTimeout(syncCanvasSize, 100);
-      return () => {
-        window.removeEventListener('resize', syncCanvasSize);
-        clearTimeout(t);
-      };
-    }
-  }, [isOpen, loaded, syncCanvasSize]);
-
-  useEffect(() => {
-    drawCanvas();
-  }, [startPoint, endPoint, drawCanvas]);
-
-  if (!isOpen) return null;
-
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setStartPoint({ x, y });
-    setEndPoint({ x, y });
-    setIsDrawing(true);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !startPoint) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setEndPoint({ x, y });
-  };
-
-  const handleMouseUp = () => {
-    setIsDrawing(false);
-  };
-
-  const handleMediaLoad = (
-    e: React.SyntheticEvent<HTMLVideoElement | HTMLImageElement>,
-  ) => {
-    const target = e.currentTarget;
-    if (target instanceof HTMLVideoElement) {
-      setVideoResolution({
-        width: target.videoWidth,
-        height: target.videoHeight,
-      });
-    } else if (target instanceof HTMLImageElement) {
-      setVideoResolution({
-        width: target.naturalWidth,
-        height: target.naturalHeight,
-      });
-    }
-    setLoaded(true);
-    // Sync size on next frame
-    setTimeout(syncCanvasSize, 50);
-  };
-
-  const handleSave = () => {
-    if (!startPoint || !endPoint || !canvasRef.current) {
-      toast.error(
-        'Please draw a line first by clicking and dragging on the video preview.',
-      );
-      return;
-    }
-    const canvas = canvasRef.current;
-    const scaleX = videoResolution.width / canvas.width;
-    const scaleY = videoResolution.height / canvas.height;
-
-    const ptA = [
-      Math.round(startPoint.x * scaleX),
-      Math.round(startPoint.y * scaleY),
-    ];
-    const ptB = [
-      Math.round(endPoint.x * scaleX),
-      Math.round(endPoint.y * scaleY),
-    ];
-
-    onSave([ptA, ptB]);
-    onClose();
-  };
-
-  const handleClear = () => {
-    setStartPoint(null);
-    setEndPoint(null);
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  };
-
-  const handleFlip = () => {
-    if (!startPoint || !endPoint) return;
-    const temp = startPoint;
-    setStartPoint(endPoint);
-    setEndPoint(temp);
-  };
-
-  return (
-    <div className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-3xl space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5 shadow-2xl">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-[#1E3048] pb-3">
-          <div>
-            <h3 className="text-sm font-semibold text-[#E8EDF5]">
-              Draw Entry/Exit Crossing Gate
-            </h3>
-            <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
-              Click and drag on the media preview to draw your crossing detector
-              line.
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="rounded p-1 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Modal Body: Drawing Canvas */}
-        <div
-          ref={containerRef}
-          className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded border border-[#1E3048]/60 bg-black/60"
-        >
-          {mediaType === 'video' ? (
-            <video
-              src={mediaUrl}
-              muted
-              playsInline
-              onLoadedMetadata={handleMediaLoad}
-              className="pointer-events-none max-h-full max-w-full object-contain"
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={mediaUrl}
-              alt="Media source"
-              onLoad={handleMediaLoad}
-              className="pointer-events-none max-h-full max-w-full object-contain"
-            />
-          )}
-
-          {loaded && (
-            <canvas
-              ref={canvasRef}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              className="absolute cursor-crosshair"
-              style={{
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: canvasSize?.width ? `${canvasSize.width}px` : '100%',
-                height: canvasSize?.height ? `${canvasSize.height}px` : '100%',
-              }}
-            />
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="flex items-center justify-between border-t border-[#1E3048] pt-3">
-          <div className="text-[10px] text-[#5A7A9A]">
-            {startPoint && endPoint ? (
-              <span className="font-semibold text-[#10B981]">
-                Line defined. Cross from OUT (red) to IN (green) to count as
-                entry.
-              </span>
-            ) : (
-              <span>
-                No line drawn. Drag your cursor across the zone to draw.
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2">
-            {startPoint && endPoint && (
-              <button
-                type="button"
-                onClick={handleFlip}
-                className="rounded border border-[#F59E0B]/30 px-3 py-1.5 text-xs font-semibold text-[#F59E0B] transition-colors hover:border-[#F59E0B]/60"
-              >
-                Flip Directions
-              </button>
-            )}
-            <button
-              onClick={handleClear}
-              className="rounded px-3 py-1.5 text-xs font-semibold text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-            >
-              Clear Line
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded px-3 py-1.5 text-xs font-semibold text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="rounded bg-[#1565C0] px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1565C0]/90"
-            >
-              Save Line & Close
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

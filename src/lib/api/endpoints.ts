@@ -43,6 +43,7 @@ export const API_ENDPOINTS = {
   },
   ACTIVITY: {
     MEDIA: '/activity/media',
+    PROCESS: '/activity/process',
     REPORT: '/activity/report',
     REPORT_SUMMARY: '/activity/report/summary',
   },

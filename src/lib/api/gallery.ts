@@ -4,6 +4,7 @@ import { API_ENDPOINTS } from './endpoints';
 import { ApiError } from '@/types/api';
 import type { ApiResponse } from '@/types/api';
 import type { GalleryMedia } from '@/types/gallery';
+export type { GalleryMedia };
 
 /** Upload one or more photo/video files to the centralized gallery */
 export async function uploadGalleryMedia(

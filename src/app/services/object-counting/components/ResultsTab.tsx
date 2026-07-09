@@ -165,6 +165,18 @@ export function ResultsTab() {
               </p>
             </div>
 
+            {details.classify_gender && (
+              <div className="mt-3 flex max-w-sm items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-left text-[11px] leading-normal text-amber-400/90">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <span>
+                  <strong>Demographics Active:</strong> Gender classification
+                  (InsightFace) is enabled. Extracting head crops and running
+                  demographics classification is a heavy task and will take more
+                  time.
+                </span>
+              </div>
+            )}
+
             <p className="mt-4 animate-pulse text-[10px] text-[#5A7A9A]/60">
               This page will auto-refresh once results are processed by the
               worker.
