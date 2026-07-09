@@ -20,34 +20,36 @@ export function ConfigureTab({
     confThreshold,
     setSimThreshold,
     setConfThreshold,
-    handleDirectLineDraw = (
-      start: [number, number],
-      end: [number, number],
-      width: number,
-      height: number,
-    ) => {
-      const video = wizardVideos[wizardVideoIndex];
-      if (!video) return;
-      usePersonAnalysisStore.setState((s) => ({
-        videoLines: {
-          ...s.videoLines,
-          [video.id]: { start, end, resolution: { width, height } },
-        },
-      }));
-      toast.success('Crossing gate line updated successfully.');
-    },
-    handleDirectSkipLine = () => {
-      const video = wizardVideos[wizardVideoIndex];
-      if (!video) return;
-      usePersonAnalysisStore.setState((s) => ({
-        videoLines: {
-          ...s.videoLines,
-          [video.id]: null,
-        },
-      }));
-      toast.success('Default full-screen detection applied.');
-    },
   } = usePersonAnalysisStore();
+
+  const handleDirectLineDraw = (
+    start: [number, number],
+    end: [number, number],
+    width: number,
+    height: number,
+  ) => {
+    const video = wizardVideos[wizardVideoIndex];
+    if (!video) return;
+    usePersonAnalysisStore.setState((s) => ({
+      videoLines: {
+        ...s.videoLines,
+        [video.id]: { start, end, resolution: { width, height } },
+      },
+    }));
+    toast.success('Crossing gate line updated successfully.');
+  };
+
+  const handleDirectSkipLine = () => {
+    const video = wizardVideos[wizardVideoIndex];
+    if (!video) return;
+    usePersonAnalysisStore.setState((s) => ({
+      videoLines: {
+        ...s.videoLines,
+        [video.id]: null,
+      },
+    }));
+    toast.success('Default full-screen detection applied.');
+  };
 
   if (wizardVideos.length === 0) {
     return (
@@ -109,7 +111,15 @@ export function ConfigureTab({
           videoSavedPath={activeVideo.saved_path ?? null}
           onLineDraw={handleDirectLineDraw}
           onSkip={handleDirectSkipLine}
-          initialLine={activeLine}
+          initialLine={
+            activeLine?.resolution
+              ? (activeLine as {
+                  start: [number, number];
+                  end: [number, number];
+                  resolution: { width: number; height: number };
+                })
+              : null
+          }
           isReadOnly={isReadOnly}
           showMinimalHeader={true}
         />
