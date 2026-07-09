@@ -23,6 +23,11 @@ import {
   Calendar,
   ChevronRight,
   Check,
+  ArrowRightLeft,
+  Users,
+  Clock,
+  UserCheck,
+  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listGalleryMedia, getGalleryMediaUrl } from '@/lib/api/gallery';
@@ -163,6 +168,9 @@ function AnalysisPageContent() {
     selectedSession: personSession,
     wizardStep: personWizardStep,
     fetchSessions: fetchPersonSessions,
+    processing: personProcessing,
+    handleProcess: handlePersonProcess,
+    selectSession: selectPersonSession,
   } = usePersonAnalysisStore();
   const personSessionId = personSession?.id;
 
@@ -247,6 +255,17 @@ function AnalysisPageContent() {
     selectedAnalyses.personAnalysis,
     uploadedMedia,
   ]);
+
+  const handlePersonProcessWrapper = async () => {
+    await handlePersonProcess((newSessions) => {
+      fetchPersonSessions();
+      if (newSessions.length > 0) {
+        selectPersonSession(newSessions[0]);
+      }
+      setActiveStep('results');
+      setActiveResultsTab('person-analysis');
+    });
+  };
 
   // Polling for Object Count status in Results step
   useEffect(() => {
@@ -520,7 +539,7 @@ function AnalysisPageContent() {
         />
       )}
 
-      {/* ── HEADER ROW ── */}
+      {/* ΓöÇΓöÇ HEADER ROW ΓöÇΓöÇ */}
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-bold text-[#E8EDF5]">
@@ -586,7 +605,7 @@ function AnalysisPageContent() {
         </div>
       </div>
 
-      {/* ── HISTORY LANDING PAGE VIEW ── */}
+      {/* ΓöÇΓöÇ HISTORY LANDING PAGE VIEW ΓöÇΓöÇ */}
       {activeStep === 'history' && (
         <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
           <div className="flex items-center gap-2 border-b border-[#1E3048] pb-3">
@@ -699,7 +718,7 @@ function AnalysisPageContent() {
         </div>
       )}
 
-      {/* ── WIZARD WORKFLOW (UPLOAD & CONFIGURATION STEPS) ── */}
+      {/* ΓöÇΓöÇ WIZARD WORKFLOW (UPLOAD & CONFIGURATION STEPS) ΓöÇΓöÇ */}
       {activeStep !== 'history' && (
         <>
           {/* Steps Visual Indicator */}
@@ -729,7 +748,11 @@ function AnalysisPageContent() {
                     )}
                   >
                     <div className="flex h-5 w-5 items-center justify-center rounded-full border border-current text-[10px] font-bold">
-                      {isCompleted ? '✓' : idx + 1}
+                      {isCompleted ? (
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      ) : (
+                        idx + 1
+                      )}
                     </div>
                     <span className="hidden text-xs capitalize md:inline">
                       {step === 'select' ? 'Choose Analysis' : step}
@@ -794,7 +817,7 @@ function AnalysisPageContent() {
 
           {/* Setup / Configuration Workflow View */}
           {activeStep !== 'results' && (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
               {/* Wizard Step 1: Select Media (Grid of Videos only) */}
               {activeStep === 'upload' && (
                 <div className="col-span-full space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
@@ -918,7 +941,7 @@ function AnalysisPageContent() {
               {activeStep !== 'upload' && (
                 <>
                   {/* Left Column: Checklist / Source File Preview */}
-                  <div className="space-y-6 lg:col-span-1">
+                  <div className="space-y-6 lg:col-span-4">
                     {uploadedMedia &&
                     (activeStep === 'configure' || activeStep === 'run') &&
                     selectedAnalyses.objectCount ? (
@@ -986,7 +1009,109 @@ function AnalysisPageContent() {
                           </div>
                         </div>
                       </div>
-                    ) : (
+                    ) : activeStep === 'configure' &&
+                      selectedAnalyses.personAnalysis ? (
+                      /* People Analytics Reports Grid Card */
+                      <div className="flex-1 space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                        <div className="border-b border-[#1E3048]/65 pb-3">
+                          <span className="rounded bg-[#1565C0]/15 px-2 py-0.5 text-[9px] font-bold tracking-widest text-[#60A5FA] uppercase">
+                            Features
+                          </span>
+                          <h2 className="mt-1 text-sm font-semibold text-[#E8EDF5]">
+                            People Analytics Reports
+                          </h2>
+                          <p className="text-[10px] leading-relaxed text-[#5A7A9A]">
+                            Unlock these reports once processing is complete.
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            {
+                              name: 'Attendance Sync',
+                              desc: 'Automatically register clock-in and attendance logs for identified staff.',
+                              icon: CheckCircle2,
+                              color:
+                                'text-teal-400 bg-teal-500/10 border-teal-500/15',
+                            },
+                            {
+                              name: 'Staff & Guest Split',
+                              desc: 'Intelligently classify and segment employees from walk-in guest visitors.',
+                              icon: Layers,
+                              color:
+                                'text-violet-400 bg-violet-500/10 border-violet-500/15',
+                            },
+                            {
+                              name: 'Flow Counts',
+                              desc: 'Track bidirectional entry and exit counts at your crossing gate line.',
+                              icon: ArrowRightLeft,
+                              color:
+                                'text-[#60A5FA] bg-[#1565C0]/10 border-[#1565C0]/15',
+                            },
+                            {
+                              name: 'Live Occupancy',
+                              desc: 'Real-time presence tracking and active zone occupant counts.',
+                              icon: Users,
+                              color:
+                                'text-emerald-400 bg-emerald-500/10 border-emerald-500/15',
+                            },
+                            {
+                              name: 'Visitor Traffic',
+                              desc: 'Compare total absolute footfall count against unique visitor metrics.',
+                              icon: BarChart2,
+                              color:
+                                'text-cyan-400 bg-cyan-500/10 border-cyan-500/15',
+                            },
+                            {
+                              name: 'Dwell Time Log',
+                              desc: 'Monitor average check-in durations and customer dwell patterns.',
+                              icon: Clock,
+                              color:
+                                'text-amber-400 bg-amber-500/10 border-amber-500/15',
+                            },
+                            {
+                              name: 'Face Registry',
+                              desc: 'Keep visual index records of all detected individuals with timestamps.',
+                              icon: UserCheck,
+                              color:
+                                'text-pink-400 bg-pink-500/10 border-pink-500/15',
+                            },
+                            {
+                              name: 'Traffic Peak Curves',
+                              desc: 'Visualize busiest hourly intervals and daily traffic trends.',
+                              icon: TrendingUp,
+                              color:
+                                'text-rose-400 bg-rose-500/10 border-rose-500/15',
+                            },
+                          ].map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <div
+                                key={item.name}
+                                className="group flex flex-col justify-between rounded-xl border border-[#1E3048]/60 bg-[#0A0F1E] p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#1565C0]/35"
+                              >
+                                <div
+                                  className={cn(
+                                    'flex h-7 w-7 items-center justify-center rounded-lg border',
+                                    item.color,
+                                  )}
+                                >
+                                  <Icon className="h-4 w-4" />
+                                </div>
+                                <div className="mt-3">
+                                  <h4 className="text-[11px] font-bold tracking-wide text-[#E8EDF5]">
+                                    {item.name}
+                                  </h4>
+                                  <p className="mt-0.5 text-[9px] leading-snug text-[#5A7A9A]">
+                                    {item.desc}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : activeStep === 'run' ? null : (
                       <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
                         <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
                           <Layers className="h-4 w-4 text-[#1565C0]" />
@@ -1006,7 +1131,7 @@ function AnalysisPageContent() {
                             },
                             {
                               id: 'personAnalysis',
-                              label: 'Person Analysis',
+                              label: 'People Analytics',
                               desc: 'Identify crossing gates, entry/exit, and occupancy count',
                               icon: Eye,
                             },
@@ -1092,7 +1217,16 @@ function AnalysisPageContent() {
                   </div>
 
                   {/* Right Column: Previews & Configurations */}
-                  <div className="space-y-6 lg:col-span-2">
+                  <div
+                    className={cn(
+                      'flex h-full flex-col space-y-6',
+                      activeStep === 'select' ||
+                        (activeStep === 'configure' &&
+                          selectedAnalyses.personAnalysis)
+                        ? 'lg:col-span-8'
+                        : 'lg:col-span-12',
+                    )}
+                  >
                     {activeStep === 'select' && (
                       <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
                         <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
@@ -1120,8 +1254,8 @@ function AnalysisPageContent() {
                       </div>
                     )}
 
-                    {activeStep === 'configure' && (
-                      <div className="space-y-6">
+                    {(activeStep === 'configure' || activeStep === 'run') && (
+                      <div className="flex h-full flex-1 flex-col space-y-6">
                         {selectedAnalyses.objectCount && (
                           <div className="object-counting-config-wrapper space-y-4">
                             <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
@@ -1166,52 +1300,46 @@ function AnalysisPageContent() {
                         )}
 
                         {selectedAnalyses.personAnalysis && (
-                          <div className="people-analytics-config-wrapper space-y-4">
-                            <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
-                              <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
-                                <Eye className="h-4 w-4 text-[#1565C0]" />
-                                Configure Person Analysis
-                              </h2>
-                              <button
-                                onClick={() => setActiveStep('select')}
-                                className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
-                              >
-                                <ArrowLeft className="h-3.5 w-3.5" /> Back
-                              </button>
-                            </div>
-                            <PersonAnalysisConfigTab />
+                          <div className="people-analytics-config-wrapper flex h-full flex-1 flex-col space-y-4">
+                            <PersonAnalysisConfigTab
+                              showThresholds={activeStep === 'run'}
+                              isReadOnly={activeStep === 'run'}
+                            />
                           </div>
                         )}
 
                         {/* Unified Run Button for non-Object Count analyses */}
-                        {!selectedAnalyses.objectCount && (
-                          <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                            <button
-                              disabled={running || isPersonAnalysisConfiguring}
-                              onClick={runAnalyses}
-                              className={cn(
-                                'flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all',
-                                isPersonAnalysisConfiguring
-                                  ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-60'
-                                  : 'bg-[#1565C0] shadow-[#1565C0]/20 hover:bg-[#1976D2]',
-                              )}
-                            >
-                              {running ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Triggering Analyses...
-                                </>
-                              ) : isPersonAnalysisConfiguring ? (
-                                'Complete Person Analysis Setup (in Configuration tab above)'
-                              ) : (
-                                <>
-                                  <Play className="h-4 w-4 fill-current" />
-                                  Run Selected Analyses
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
+                        {!selectedAnalyses.objectCount &&
+                          !selectedAnalyses.personAnalysis && (
+                            <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                              <button
+                                disabled={
+                                  running || isPersonAnalysisConfiguring
+                                }
+                                onClick={runAnalyses}
+                                className={cn(
+                                  'flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all',
+                                  isPersonAnalysisConfiguring
+                                    ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-60'
+                                    : 'bg-[#1565C0] shadow-[#1565C0]/20 hover:bg-[#1976D2]',
+                                )}
+                              >
+                                {running ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Triggering Analyses...
+                                  </>
+                                ) : isPersonAnalysisConfiguring ? (
+                                  'Complete People Analytics Setup (in Configuration tab above)'
+                                ) : (
+                                  <>
+                                    <Play className="h-4 w-4 fill-current" />
+                                    Run Selected Analyses
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
                       </div>
                     )}
 
@@ -1271,6 +1399,43 @@ function AnalysisPageContent() {
                       </div>
                     )}
                   </div>
+
+                  {/* Step 3 (Configure) Actions: Proceed to Run */}
+                  {activeStep === 'configure' &&
+                    selectedAnalyses.personAnalysis && (
+                      <div className="col-span-full mt-2">
+                        <button
+                          onClick={() => setActiveStep('run')}
+                          className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl bg-[#1565C0] py-3.5 text-sm font-bold text-white shadow-lg shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2] hover:shadow-[#1565C0]/35"
+                        >
+                          Proceed to Review &amp; Run
+                          <ArrowRight className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )}
+
+                  {/* Step 4 (Run) Actions: Review & Trigger Processing */}
+                  {activeStep === 'run' && selectedAnalyses.personAnalysis && (
+                    <div className="col-span-full mt-2">
+                      <button
+                        disabled={personProcessing}
+                        onClick={handlePersonProcessWrapper}
+                        className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl bg-[#1565C0] py-3.5 text-sm font-bold text-white shadow-lg shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2] hover:shadow-[#1565C0]/35 disabled:opacity-60"
+                      >
+                        {personProcessing ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Triggering People Analytics...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 fill-current" />
+                            Run Analysis Now
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>

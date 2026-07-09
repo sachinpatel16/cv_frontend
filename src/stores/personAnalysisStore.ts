@@ -14,6 +14,7 @@ import {
   listUploadedVideos,
   processBatchSessions,
   uploadCCTVFootage,
+  getVisitorAnalytics,
 } from '@/lib/api/peopleanalytics';
 
 type Tab = 'uploads' | 'configure' | 'results';
@@ -164,7 +165,7 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
     wizardVideoIndex: 0,
     wizardVideos: [],
     videoLines: {},
-    simThreshold: 0.85,
+    simThreshold: 0.8,
     confThreshold: 0.3,
     processing: false,
 
@@ -216,6 +217,7 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
           videos: wizardVideos.map((u) => {
             const lineInfo = videoLines[u.id];
             return {
+              gallery_media_id: u.id,
               video_path: u.saved_path,
               ...(lineInfo
                 ? { line_start: lineInfo.start, line_end: lineInfo.end }
@@ -251,6 +253,10 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
       try {
         const res = await listAnalyticsSessions();
         set({ sessions: res.data });
+        const statsRes = await getVisitorAnalytics();
+        if (statsRes && statsRes.data) {
+          set({ visitorStats: statsRes.data });
+        }
       } catch {
         // silent
       } finally {
@@ -265,6 +271,10 @@ export const usePersonAnalysisStore = create<PersonAnalysisState>(
         try {
           const res = await getSessionDetectedPeople(s.id);
           set({ detectedPeople: res.data });
+          const statsRes = await getVisitorAnalytics();
+          if (statsRes && statsRes.data) {
+            set({ visitorStats: statsRes.data });
+          }
         } catch {
           set({ detectedPeople: [] });
         } finally {

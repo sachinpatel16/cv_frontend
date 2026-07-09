@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
   BarChart3,
   Users,
@@ -12,7 +12,9 @@ import {
   Loader2,
   X,
   UserCircle2,
+  CalendarDays,
 } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { usePersonAnalysisStore } from '@/stores/personAnalysisStore';
 import { StatCard } from './StatCard';
@@ -32,6 +34,12 @@ export function ResultsTab() {
   const [previewPerson, setPreviewPerson] = useState<DetectedPerson | null>(
     null,
   );
+  const [registryTab, setRegistryTab] = useState<
+    'all' | 'new-guests' | 'staff'
+  >('all');
+  const [statsTab, setStatsTab] = useState<'session' | 'cross-video'>(
+    'session',
+  );
 
   const setSelectedSession = (s: AnalyticsSession | null) => {
     usePersonAnalysisStore.setState({
@@ -44,38 +52,33 @@ export function ResultsTab() {
     new Map(detectedPeople.map((p) => [p.identity_id, p])).values(),
   );
 
+  const newGuests: DetectedPerson[] = (
+    selectedSession?.first_time_visitors || []
+  ).map((v) => {
+    const hasName = v.first_name || v.last_name;
+    const name = hasName
+      ? `${v.first_name || ''} ${v.last_name || ''}`.trim()
+      : `New Visitor #${v.identity_id.slice(0, 4)}`;
+    return {
+      identity_id: v.identity_id,
+      type: 'visitor',
+      name: name,
+      photo_path: v.photo_path,
+      first_seen: v.first_seen,
+      last_seen: v.last_seen,
+      dwell_time: v.dwell_time,
+    };
+  });
+
+  const currentList =
+    registryTab === 'all'
+      ? uniqueDetectedPeople
+      : registryTab === 'staff'
+        ? uniqueDetectedPeople.filter((p) => p.type === 'employee')
+        : newGuests;
+
   return (
     <div className="space-y-5">
-      {/* Global Aggregated Visitor Stats Banner */}
-      {visitorStats && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard
-            label="Total Unique People"
-            value={visitorStats.total_unique_people}
-            icon={Users}
-            color="blue"
-          />
-          <StatCard
-            label="Repeat Visitors"
-            value={visitorStats.repeat_visitors_count}
-            icon={Repeat2}
-            color="purple"
-          />
-          <StatCard
-            label="Repeat Rate"
-            value={`${visitorStats.repeat_visitor_rate.toFixed(1)}%`}
-            icon={TrendingUp}
-            color="green"
-          />
-          <StatCard
-            label="New This Month"
-            value={visitorStats.new_visitors_this_month}
-            icon={Star}
-            color="amber"
-          />
-        </div>
-      )}
-
       {!selectedSession ? (
         <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-[#1E3048] bg-[#0D1628] p-6 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#1E3048] bg-[#0D1628]">
@@ -107,12 +110,13 @@ export function ResultsTab() {
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => setSelectedSession(null)}
-              className="flex items-center gap-1 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-2.5 py-1.5 text-xs text-[#5A7A9A] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            <Link
+              href="/services/people-analytics/attendance"
+              className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3.5 py-2 text-xs font-semibold text-[#60A5FA] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048] hover:text-[#E8EDF5]"
             >
-              Close Results
-            </button>
+              <CalendarDays className="h-3.5 w-3.5" />
+              Visitor Attendance Logs
+            </Link>
           </div>
 
           {selectedSession.status === 'completed' && (
@@ -148,73 +152,191 @@ export function ResultsTab() {
                   )}
               </div>
 
-              {/* Right Column: Numerical Stats & Visitor Registry (40%) */}
+              {/* Right Column: Tabbed Stats & Visitor Registry (40%) */}
               <div className="space-y-5 lg:col-span-5 xl:col-span-4">
-                {/* Stats grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <StatCard
-                    label="Unique People"
-                    value={selectedSession.unique_person_count}
-                    icon={Users}
-                    color="blue"
-                  />
-                  <StatCard
-                    label="Total Person"
-                    value={selectedSession.total_person_count}
-                    icon={Eye}
-                    color="purple"
-                  />
-                  <StatCard
-                    label="Entries logged"
-                    value={selectedSession.entry_count}
-                    icon={LogIn}
-                    color="green"
-                  />
-                  <StatCard
-                    label="Exits logged"
-                    value={selectedSession.exit_count}
-                    icon={LogOut}
-                    color="amber"
-                  />
-                  <StatCard
-                    label="Peak Occupancy"
-                    value={selectedSession.peak_occupancy}
-                    icon={TrendingUp}
-                    color="red"
-                  />
-                  <StatCard
-                    label="Avg Occupancy"
-                    value={
-                      selectedSession.average_occupancy?.toFixed(1) ?? null
-                    }
-                    icon={BarChartIcon}
-                    color="blue"
-                  />
+                {/* Tabbed Stats Card */}
+                <div className="overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                  {/* Tab header */}
+                  <div className="flex border-b border-[#1E3048] bg-[#0A0F1E]/40">
+                    {[
+                      { id: 'session', label: 'Session Stats' },
+                      { id: 'cross-video', label: 'All-Time Insights' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setStatsTab(tab.id as any)}
+                        className={cn(
+                          'flex-1 cursor-pointer py-2.5 text-[11px] font-bold tracking-wide transition-colors',
+                          statsTab === tab.id
+                            ? 'border-b-2 border-[#1565C0] bg-[#1565C0]/5 text-[#60A5FA]'
+                            : 'text-[#5A7A9A] hover:text-[#E8EDF5]',
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Session Stats */}
+                  {statsTab === 'session' && (
+                    <div className="grid grid-cols-2 gap-3 p-4">
+                      <StatCard
+                        label="Unique People"
+                        value={selectedSession.unique_person_count}
+                        icon={Users}
+                        color="blue"
+                      />
+                      <StatCard
+                        label="Total Detections"
+                        value={selectedSession.total_person_count}
+                        icon={Eye}
+                        color="purple"
+                      />
+                      {selectedSession.entry_count !== null &&
+                        selectedSession.entry_count !== undefined && (
+                          <StatCard
+                            label="Entries"
+                            value={selectedSession.entry_count}
+                            icon={LogIn}
+                            color="green"
+                          />
+                        )}
+                      {selectedSession.exit_count !== null &&
+                        selectedSession.exit_count !== undefined && (
+                          <StatCard
+                            label="Exits"
+                            value={selectedSession.exit_count}
+                            icon={LogOut}
+                            color="amber"
+                          />
+                        )}
+                      <StatCard
+                        label="Peak Occupancy"
+                        value={selectedSession.peak_occupancy}
+                        icon={TrendingUp}
+                        color="red"
+                      />
+                      <StatCard
+                        label="Avg Occupancy"
+                        value={
+                          selectedSession.average_occupancy?.toFixed(1) ?? null
+                        }
+                        icon={BarChartIcon}
+                        color="blue"
+                      />
+                    </div>
+                  )}
+
+                  {/* Cross-Video Insights */}
+                  {statsTab === 'cross-video' &&
+                    (visitorStats ? (
+                      <div className="grid grid-cols-2 gap-3 p-4">
+                        <StatCard
+                          label="Unique People (All-Time)"
+                          value={visitorStats.total_unique_people}
+                          icon={Users}
+                          color="blue"
+                        />
+                        <StatCard
+                          label="Repeat Visitors"
+                          value={visitorStats.repeat_visitors_count}
+                          icon={Repeat2}
+                          color="purple"
+                        />
+                        <StatCard
+                          label="Repeat Rate"
+                          value={`${visitorStats.repeat_visitor_rate.toFixed(1)}%`}
+                          icon={TrendingUp}
+                          color="green"
+                        />
+                        <StatCard
+                          label="New This Month"
+                          value={visitorStats.new_visitors_this_month}
+                          icon={Star}
+                          color="amber"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex h-36 items-center justify-center text-xs text-[#5A7A9A]">
+                        No cross-video analytics available yet.
+                      </div>
+                    ))}
                 </div>
 
                 {/* Detected people list */}
-                <div className="flex flex-col rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                <div className="flex flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
                   <div className="shrink-0 border-b border-[#1E3048] px-5 py-3">
-                    <p className="text-xs font-semibold text-[#5A7A9A]">
-                      Detected Visitors ({uniqueDetectedPeople.length})
+                    <p className="text-xs font-semibold text-[#E8EDF5]">
+                      Identity Registries
                     </p>
                   </div>
+
+                  {/* Tab Switcher */}
+                  <div className="flex shrink-0 items-center gap-1.5 border-b border-[#1E3048] bg-[#0A0F1E]/30 px-4 py-2">
+                    {[
+                      {
+                        id: 'all',
+                        label: 'All Crops',
+                        count: uniqueDetectedPeople.length,
+                      },
+                      {
+                        id: 'new-guests',
+                        label: 'First-Time',
+                        count: newGuests.length,
+                      },
+                      {
+                        id: 'staff',
+                        label: 'Staff',
+                        count: uniqueDetectedPeople.filter(
+                          (p) => p.type === 'employee',
+                        ).length,
+                      },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setRegistryTab(tab.id as any)}
+                        className={cn(
+                          'flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-bold tracking-wide transition-all',
+                          registryTab === tab.id
+                            ? 'border-[#1565C0] bg-[#1565C0] text-white'
+                            : 'border-transparent bg-transparent text-[#5A7A9A] hover:border-[#1E3048] hover:text-[#E8EDF5]',
+                        )}
+                      >
+                        <span>{tab.label}</span>
+                        <span
+                          className={cn(
+                            'rounded-full px-1 text-[8px]',
+                            registryTab === tab.id
+                              ? 'bg-white/20 text-white'
+                              : 'bg-[#1E3048] text-[#5A7A9A]',
+                          )}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
                   {loadingPeople ? (
                     <div className="flex h-32 items-center justify-center">
                       <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
                     </div>
-                  ) : uniqueDetectedPeople.length === 0 ? (
+                  ) : currentList.length === 0 ? (
                     <div className="p-8 text-center text-xs text-[#5A7A9A]">
-                      No visitors detected in this session.
+                      {registryTab === 'all'
+                        ? 'No visitor or staff records detected.'
+                        : registryTab === 'staff'
+                          ? 'No staff members detected in this session.'
+                          : 'No new first-time visitors detected.'}
                     </div>
                   ) : (
                     <div className="custom-scrollbar max-h-[380px] overflow-y-auto p-4">
                       <div className="grid grid-cols-2 gap-2">
-                        {uniqueDetectedPeople.map((p) => (
+                        {currentList.map((p) => (
                           <button
                             key={p.identity_id}
                             onClick={() => setPreviewPerson(p)}
-                            className="group rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-3 text-center transition-all hover:border-[#1565C0]/50 hover:bg-[#1E3048]/40 hover:shadow-lg"
+                            className="group cursor-pointer rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-3 text-center transition-all hover:border-[#1565C0]/50 hover:bg-[#1E3048]/40 hover:shadow-lg"
                           >
                             <div className="relative mx-auto mb-2 h-12 w-12 overflow-hidden rounded-full border-2 border-[#1E3048] transition-colors group-hover:border-[#1565C0]/60">
                               {p.photo_path ? (

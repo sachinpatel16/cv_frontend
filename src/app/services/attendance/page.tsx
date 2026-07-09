@@ -296,6 +296,8 @@ function EmployeesTab() {
     todayLogs,
   } = useAttendanceStore();
 
+  const [previewEmp, setPreviewEmp] = useState<any>(null);
+
   const { getRootProps: getPhotoRootProps, getInputProps: getPhotoInputProps } =
     useDropzone({
       accept: {
@@ -382,20 +384,34 @@ function EmployeesTab() {
                   className="group transition-colors hover:bg-[#1E3048]/20"
                 >
                   <td className="px-6 py-3 whitespace-nowrap">
-                    <div className="h-10 w-10 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E]">
+                    <button
+                      onClick={() => emp.photo_path && setPreviewEmp(emp)}
+                      disabled={!emp.photo_path}
+                      className={cn(
+                        'group relative block h-10 w-10 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E] text-left transition-all outline-none',
+                        emp.photo_path
+                          ? 'cursor-pointer hover:border-[#1565C0]/60 hover:shadow-md'
+                          : 'cursor-default',
+                      )}
+                    >
                       {emp.photo_path ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={getEmployeePhotoUrl(emp.photo_path)}
-                          alt={`${emp.first_name} ${emp.last_name}`}
-                          className="h-full w-full object-cover"
-                        />
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={getEmployeePhotoUrl(emp.photo_path)}
+                            alt={`${emp.first_name} ${emp.last_name}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Eye className="h-4 w-4 text-white" />
+                          </div>
+                        </>
                       ) : (
                         <div className="flex h-full items-center justify-center">
                           <UserCircle2 className="h-6 w-6 text-[#5A7A9A]" />
                         </div>
                       )}
-                    </div>
+                    </button>
                   </td>
                   <td className="px-6 py-4 font-semibold whitespace-nowrap text-[#E8EDF5]">
                     {emp.first_name} {emp.last_name}
@@ -585,6 +601,66 @@ function EmployeesTab() {
                 >
                   Delete
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Photo Preview Modal */}
+      {previewEmp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewEmp(null)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#1E3048] bg-[#0D1628] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-1 bg-gradient-to-r from-[#1565C0] to-[#60A5FA]" />
+            <div className="relative flex flex-col items-center gap-4 bg-gradient-to-b from-[#0A0F1E] to-[#0D1628] p-6">
+              <button
+                onClick={() => setPreviewEmp(null)}
+                className="absolute top-3 right-3 cursor-pointer rounded-lg p-1.5 text-[#5A7A9A] outline-none hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              <h3 className="flex w-full items-center gap-2 self-start border-b border-[#1E3048] pb-2 text-sm font-bold text-[#E8EDF5]">
+                <Eye className="h-4 w-4 text-[#60A5FA]" />
+                Employee Profile Photo
+              </h3>
+
+              <div className="relative h-48 w-48 overflow-hidden rounded-2xl border-4 border-[#1E3048] bg-[#070B14] shadow-2xl">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={getEmployeePhotoUrl(previewEmp.photo_path)}
+                  alt={`${previewEmp.first_name} ${previewEmp.last_name}`}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+
+              <div className="w-full space-y-2 rounded-xl border border-[#1E3048]/50 bg-[#0A0F1E]/50 p-4 text-xs">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="shrink-0 text-[#5A7A9A]">Full Name:</span>
+                  <span className="w-full truncate text-right font-semibold text-[#E8EDF5]">
+                    {previewEmp.first_name} {previewEmp.last_name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="shrink-0 text-[#5A7A9A]">
+                    Employee Code:
+                  </span>
+                  <span className="text-right font-mono font-semibold text-[#E8EDF5] select-all">
+                    {previewEmp.employee_code}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#5A7A9A]">Date Registered:</span>
+                  <span className="text-[#E8EDF5]">
+                    {formatDateOnly(previewEmp.created_at)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

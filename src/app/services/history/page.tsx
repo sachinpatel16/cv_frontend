@@ -120,7 +120,7 @@ function HistoryPageContent() {
               setViewMode('results');
             }
           } catch (err) {
-            toast.error('Failed to load person analysis session details.');
+            toast.error('Failed to load people analytics session details.');
           }
         }
       };
@@ -232,7 +232,7 @@ function HistoryPageContent() {
     ...(personRuns || []).map((run) => ({
       id: run.id,
       type: 'person-analysis' as const,
-      filename: run.video_name || 'Person Analysis Session',
+      filename: run.video_name || 'People Analytics Session',
       filepath: run.video_path,
       status: run.status,
       created_at: run.created_at,
@@ -292,7 +292,7 @@ function HistoryPageContent() {
               </button>
             ) : (
               <button className="border-b-2 border-[#1565C0] px-4 py-2 text-sm font-semibold text-[#E8EDF5]">
-                Person Analysis Results
+                People Analytics Results
               </button>
             )}
           </div>
