@@ -23,6 +23,8 @@ import {
   LogOut,
   Eye,
   FileImage,
+  FolderOpen,
+  Check,
 } from 'lucide-react';
 import {
   getEmployeePhotoUrl,
@@ -33,6 +35,7 @@ import {
 import type { AttendanceVideoSession, AttendanceLog } from '@/types/employees';
 import { useAttendanceStore } from '@/stores/attendanceStore';
 import { convertHeicToJpeg, isHeicFile } from '@/lib/heicConverter';
+import { getGalleryMediaUrl } from '@/lib/api/gallery';
 
 import { StatusBadge } from '@/components/services/shared/StatusBadge';
 
@@ -296,6 +299,8 @@ function EmployeesTab() {
     todayLogs,
   } = useAttendanceStore();
 
+  const [previewEmp, setPreviewEmp] = useState<any>(null);
+
   const { getRootProps: getPhotoRootProps, getInputProps: getPhotoInputProps } =
     useDropzone({
       accept: {
@@ -382,20 +387,34 @@ function EmployeesTab() {
                   className="group transition-colors hover:bg-[#1E3048]/20"
                 >
                   <td className="px-6 py-3 whitespace-nowrap">
-                    <div className="h-10 w-10 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E]">
+                    <button
+                      onClick={() => emp.photo_path && setPreviewEmp(emp)}
+                      disabled={!emp.photo_path}
+                      className={cn(
+                        'group relative block h-10 w-10 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E] text-left transition-all outline-none',
+                        emp.photo_path
+                          ? 'cursor-pointer hover:border-[#1565C0]/60 hover:shadow-md'
+                          : 'cursor-default',
+                      )}
+                    >
                       {emp.photo_path ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={getEmployeePhotoUrl(emp.photo_path)}
-                          alt={`${emp.first_name} ${emp.last_name}`}
-                          className="h-full w-full object-cover"
-                        />
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={getEmployeePhotoUrl(emp.photo_path)}
+                            alt={`${emp.first_name} ${emp.last_name}`}
+                            className="h-full w-full object-cover"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                            <Eye className="h-4 w-4 text-white" />
+                          </div>
+                        </>
                       ) : (
                         <div className="flex h-full items-center justify-center">
                           <UserCircle2 className="h-6 w-6 text-[#5A7A9A]" />
                         </div>
                       )}
-                    </div>
+                    </button>
                   </td>
                   <td className="px-6 py-4 font-semibold whitespace-nowrap text-[#E8EDF5]">
                     {emp.first_name} {emp.last_name}
@@ -590,6 +609,66 @@ function EmployeesTab() {
           </div>
         </div>
       )}
+
+      {/* Employee Photo Preview Modal */}
+      {previewEmp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewEmp(null)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl border border-[#1E3048] bg-[#0D1628] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-1 bg-gradient-to-r from-[#1565C0] to-[#60A5FA]" />
+            <div className="relative flex flex-col items-center gap-4 bg-gradient-to-b from-[#0A0F1E] to-[#0D1628] p-6">
+              <button
+                onClick={() => setPreviewEmp(null)}
+                className="absolute top-3 right-3 cursor-pointer rounded-lg p-1.5 text-[#5A7A9A] outline-none hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+
+              <h3 className="flex w-full items-center gap-2 self-start border-b border-[#1E3048] pb-2 text-sm font-bold text-[#E8EDF5]">
+                <Eye className="h-4 w-4 text-[#60A5FA]" />
+                Employee Profile Photo
+              </h3>
+
+              <div className="relative h-48 w-48 overflow-hidden rounded-2xl border-4 border-[#1E3048] bg-[#070B14] shadow-2xl">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={getEmployeePhotoUrl(previewEmp.photo_path)}
+                  alt={`${previewEmp.first_name} ${previewEmp.last_name}`}
+                  className="h-full w-full object-contain"
+                />
+              </div>
+
+              <div className="w-full space-y-2 rounded-xl border border-[#1E3048]/50 bg-[#0A0F1E]/50 p-4 text-xs">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="shrink-0 text-[#5A7A9A]">Full Name:</span>
+                  <span className="w-full truncate text-right font-semibold text-[#E8EDF5]">
+                    {previewEmp.first_name} {previewEmp.last_name}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="shrink-0 text-[#5A7A9A]">
+                    Employee Code:
+                  </span>
+                  <span className="text-right font-mono font-semibold text-[#E8EDF5] select-all">
+                    {previewEmp.employee_code}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#5A7A9A]">Date Registered:</span>
+                  <span className="text-[#E8EDF5]">
+                    {formatDateOnly(previewEmp.created_at)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -602,73 +681,29 @@ function AttendanceUploadsTab() {
   const {
     uploadSubTab: subTab,
     setUploadSubTab: setSubTab,
-    attSessions,
-    fetchAttSessions,
-    groupPhotoPreview,
-    groupPhoto,
     simThreshold,
     confThreshold,
-    groupPhotoResult,
     markingAttendance,
-    setGroupPhoto,
     setSimThreshold,
     setConfThreshold,
     markGroupPhoto,
-    attUploads,
-    attUploading,
-    selectedAttSession,
-    historyOpen: attHistoryOpen,
-    addAttUploads,
-    removeAttUpload,
     processAttVideos,
-    setSelectedAttSession,
-    setHistoryOpen: setAttHistoryOpen,
+    // Gallery state bindings
+    galleryPhotos,
+    galleryVideos,
+    loadingGallery,
+    selectedPhotoId,
+    selectedVideoIds,
+    fetchGalleryMedia,
+    setSelectedPhotoId,
+    toggleSelectVideoId,
+    clearSelection,
   } = useAttendanceStore();
 
-  const {
-    getRootProps: getGroupPhotoRootProps,
-    getInputProps: getGroupPhotoInputProps,
-  } = useDropzone({
-    accept: {
-      'image/jpeg': ['.jpg', '.jpeg'],
-      'image/png': ['.png'],
-      'image/webp': ['.webp'],
-      'image/heic': ['.heic'],
-      'image/heif': ['.heif'],
-    },
-    maxFiles: 1,
-    onDrop: async ([file]) => {
-      if (!file) return;
-
-      if (isHeicFile(file)) {
-        // HEIC is not renderable in Chrome/Firefox — convert to JPEG for preview only.
-        // The original file is still uploaded to the backend unchanged.
-        const converted = await convertHeicToJpeg(file);
-        const previewUrl = converted
-          ? URL.createObjectURL(converted)
-          : URL.createObjectURL(file); // fallback (Safari handles HEIC natively)
-        setGroupPhoto(file, previewUrl);
-      } else {
-        setGroupPhoto(file, URL.createObjectURL(file));
-      }
-    },
-  });
-
-  const {
-    getRootProps: getAttVideoRootProps,
-    getInputProps: getAttVideoInputProps,
-  } = useDropzone({
-    accept: {
-      'video/mp4': ['.mp4'],
-      'video/quicktime': ['.mov'],
-      'video/x-msvideo': ['.avi'],
-      'video/x-matroska': ['.mkv'],
-    },
-    maxFiles: 10,
-    onDrop: async (files) => {
-      await addAttUploads(files);
-    },
-  });
+  useEffect(() => {
+    fetchGalleryMedia();
+    clearSelection();
+  }, [fetchGalleryMedia, clearSelection]);
 
   return (
     <div className="space-y-5">
@@ -696,41 +731,93 @@ function AttendanceUploadsTab() {
         ))}
       </div>
 
-      {/* ── Group Photo Upload ── */}
+      {/* ── Group Photo Selection ── */}
       {subTab === 'groupphoto' && (
         <div className="space-y-5">
           <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-            <div
-              {...getGroupPhotoRootProps()}
-              className={cn(
-                'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-[#1E3048] transition-colors hover:border-[#1565C0]/50 hover:bg-[#1E3048]/20',
-                groupPhotoPreview ? 'p-3' : 'p-6',
-              )}
-            >
-              <input {...getGroupPhotoInputProps()} />
-              {groupPhotoPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={groupPhotoPreview}
-                  alt="Group photo preview"
-                  className="max-h-[420px] w-full rounded-lg object-contain"
-                  style={{ maxHeight: '420px' }}
-                />
-              ) : (
-                <>
-                  <Camera className="h-8 w-8 text-[#5A7A9A]" />
-                  <p className="text-sm text-[#5A7A9A]">
-                    Upload a group photo to mark attendance
-                  </p>
-                  <p className="text-xs text-[#5A7A9A]/60">
-                    Click or drag an image file (JPG, PNG, HEIC)
-                  </p>
-                </>
-              )}
+            <div className="border-b border-[#1E3048]/60 pb-3">
+              <h3 className="text-xs font-semibold text-[#E8EDF5]">
+                Select Group Photo from Library
+              </h3>
+              <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
+                Choose a single photo from the global media gallery to mark
+                daily employee attendance.
+              </p>
             </div>
 
+            {loadingGallery ? (
+              <div className="flex h-48 w-full items-center justify-center text-xs text-[#5A7A9A]">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading
+                photos...
+              </div>
+            ) : galleryPhotos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center space-y-2 rounded-xl border border-dashed border-[#1E3048] bg-[#0A0F1E]/20 py-12 text-center text-[#5A7A9A]">
+                <FolderOpen className="h-8 w-8 opacity-30" />
+                <p className="text-xs font-semibold text-[#E8EDF5]">
+                  No photos in library
+                </p>
+                <p className="mx-auto max-w-[200px] text-[10px] leading-normal">
+                  Upload photos in the &quot;My Library&quot; / Gallery service
+                  first.
+                </p>
+              </div>
+            ) : (
+              <div className="grid max-h-[360px] grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {galleryPhotos.map((item) => {
+                  const isSelected = selectedPhotoId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => setSelectedPhotoId(item.id)}
+                      className={cn(
+                        'group relative flex min-h-[140px] cursor-pointer flex-col justify-between overflow-hidden rounded-xl border bg-[#0A0F1E] transition-all',
+                        isSelected
+                          ? 'border-[#1565C0] ring-1 ring-[#1565C0]/40'
+                          : 'border-[#1E3048] hover:border-[#1E3048]/80',
+                      )}
+                    >
+                      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden border-b border-[#1E3048]/60 bg-black">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={getGalleryMediaUrl(item.filepath)}
+                          alt={item.filename}
+                          className="h-full w-full object-cover opacity-60 transition-opacity group-hover:opacity-85"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                          <Camera className="h-5 w-5 text-white/50" />
+                        </div>
+                        <div
+                          className={cn(
+                            'absolute top-2 right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full border transition-all',
+                            isSelected
+                              ? 'border-[#60A5FA] bg-[#1565C0] text-white'
+                              : 'border-[#1E3048] bg-black/60 text-transparent',
+                          )}
+                        >
+                          {isSelected && (
+                            <Check className="h-2.5 w-2.5 stroke-[3]" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="min-w-0 p-2.5">
+                        <span
+                          className="block truncate text-xs font-semibold text-[#E8EDF5]"
+                          title={item.filename}
+                        >
+                          {item.filename}
+                        </span>
+                        <p className="mt-0.5 text-[9px] text-[#5A7A9A]">
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Threshold Sliders */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 border-t border-[#1E3048]/40 pt-3">
               <div>
                 <div className="mb-1 flex items-center justify-between">
                   <label className="text-xs font-medium text-[#5A7A9A]">
@@ -773,7 +860,7 @@ function AttendanceUploadsTab() {
 
             <button
               onClick={markGroupPhoto}
-              disabled={!groupPhotoPreview || markingAttendance}
+              disabled={!selectedPhotoId || markingAttendance}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#1565C0] py-2.5 text-sm font-semibold text-white hover:bg-[#1976D2] disabled:opacity-60"
             >
               {markingAttendance && (
@@ -785,66 +872,98 @@ function AttendanceUploadsTab() {
         </div>
       )}
 
-      {/* ── Attendance Video Upload ── */}
+      {/* ── Attendance Video Selection ── */}
       {subTab === 'video' && (
         <div className="space-y-5">
-          <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
-            <div className="border-b border-[#1E3048] px-5 py-3">
-              <p className="text-xs font-semibold text-[#5A7A9A]">
-                Upload Check-In / Check-Out footage
+          <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+            <div className="border-b border-[#1E3048]/60 pb-3">
+              <h3 className="text-xs font-semibold text-[#E8EDF5]">
+                Select Attendance Video(s) from Library
+              </h3>
+              <p className="mt-0.5 text-[10px] text-[#5A7A9A]">
+                Choose one or more check-in / check-out footage videos from the
+                global media gallery to process.
               </p>
             </div>
 
-            <div className="space-y-4 p-5">
-              <div
-                {...getAttVideoRootProps()}
-                className={cn(
-                  'flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-colors',
-                  'border-[#1E3048] hover:border-[#1565C0]/50 hover:bg-[#1E3048]/30',
-                )}
-              >
-                <input {...getAttVideoInputProps()} />
-                {attUploading ? (
-                  <Loader2 className="h-8 w-8 animate-spin text-[#5A7A9A]" />
-                ) : (
-                  <Upload className="h-8 w-8 text-[#5A7A9A]" />
-                )}
-                <p className="text-sm text-[#5A7A9A]">
-                  Drag &amp; drop footage or click to browse
+            {loadingGallery ? (
+              <div className="flex h-48 w-full items-center justify-center text-xs text-[#5A7A9A]">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading
+                videos...
+              </div>
+            ) : galleryVideos.length === 0 ? (
+              <div className="flex flex-col items-center justify-center space-y-2 rounded-xl border border-dashed border-[#1E3048] bg-[#0A0F1E]/20 py-12 text-center text-[#5A7A9A]">
+                <FolderOpen className="h-8 w-8 opacity-30" />
+                <p className="text-xs font-semibold text-[#E8EDF5]">
+                  No videos in library
                 </p>
-                <p className="text-xs text-[#5A7A9A]/60">
-                  MP4, AVI, MOV — background facial analysis
+                <p className="mx-auto max-w-[200px] text-[10px] leading-normal">
+                  Upload videos in the &quot;My Library&quot; / Gallery service
+                  first.
                 </p>
               </div>
-
-              {attUploads.length > 0 && (
-                <div className="space-y-2">
-                  {attUploads.map((u) => (
+            ) : (
+              <div className="grid max-h-[360px] grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                {galleryVideos.map((item) => {
+                  const isSelected = selectedVideoIds.includes(item.id);
+                  return (
                     <div
-                      key={u.id}
-                      className="flex items-center gap-3 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-2.5"
+                      key={item.id}
+                      onClick={() => toggleSelectVideoId(item.id)}
+                      className={cn(
+                        'group relative flex min-h-[140px] cursor-pointer flex-col justify-between overflow-hidden rounded-xl border bg-[#0A0F1E] transition-all',
+                        isSelected
+                          ? 'border-[#1565C0] ring-1 ring-[#1565C0]/40'
+                          : 'border-[#1E3048] hover:border-[#1E3048]/80',
+                      )}
                     >
-                      <Video className="h-4 w-4 shrink-0 text-[#60A5FA]" />
-                      <span className="min-w-0 flex-1 truncate text-xs text-[#E8EDF5]">
-                        {u.original_name}
-                      </span>
-                      <button
-                        onClick={() => removeAttUpload(u.id)}
-                        className="text-[#5A7A9A] hover:text-red-400"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden border-b border-[#1E3048]/60 bg-black">
+                        <video
+                          src={`${getGalleryMediaUrl(item.filepath)}#t=0.5`}
+                          preload="metadata"
+                          muted
+                          className="h-full w-full object-cover opacity-60 transition-opacity group-hover:opacity-85"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                          <Video className="h-5 w-5 text-white/50" />
+                        </div>
+                        <div
+                          className={cn(
+                            'absolute top-2 right-2 z-10 flex h-4 w-4 items-center justify-center rounded-full border transition-all',
+                            isSelected
+                              ? 'border-[#60A5FA] bg-[#1565C0] text-white'
+                              : 'border-[#1E3048] bg-black/60 text-transparent',
+                          )}
+                        >
+                          {isSelected && (
+                            <Check className="h-2.5 w-2.5 stroke-[3]" />
+                          )}
+                        </div>
+                      </div>
+                      <div className="min-w-0 p-2.5">
+                        <span
+                          className="block truncate text-xs font-semibold text-[#E8EDF5]"
+                          title={item.filename}
+                        >
+                          {item.filename}
+                        </span>
+                        <p className="mt-0.5 text-[9px] text-[#5A7A9A]">
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
-                  ))}
-                  <button
-                    onClick={processAttVideos}
-                    className="mt-2 w-full rounded-xl bg-[#1565C0] py-2.5 text-sm font-semibold text-white hover:bg-[#1976D2]"
-                  >
-                    Process Videos →
-                  </button>
-                </div>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={processAttVideos}
+              disabled={selectedVideoIds.length === 0}
+              className="mt-2 w-full rounded-xl bg-[#1565C0] py-2.5 text-sm font-semibold text-white transition-all hover:bg-[#1976D2] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Process Selected Videos ({selectedVideoIds.length}) →
+            </button>
           </div>
         </div>
       )}
@@ -977,51 +1096,65 @@ function ResultsTab() {
               Marked present from the group photo
             </p>
           </div>
-          <button
-            onClick={() => setMediaModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-2 text-xs font-semibold text-[#E8EDF5] hover:bg-[#1E3048]"
-          >
-            <Eye className="h-4 w-4" /> View Annotated Photo
-          </button>
         </div>
 
-        <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
-          <div className="border-b border-[#1E3048] px-5 py-3">
-            <p className="text-xs font-semibold text-[#5A7A9A]">
-              Marked Present ({groupPhotoResult.attendance_logs.length})
-            </p>
-          </div>
-          <div className="divide-y divide-[#1E3048]">
-            {groupPhotoResult.attendance_logs.length === 0 ? (
-              <div className="p-5 text-center text-xs text-[#5A7A9A]">
-                No employees recognized. Try adjusting similarity/confidence
-                settings and upload again.
+        <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
+          {/* Embedded Annotated Photo on the left */}
+          <div className="flex flex-col lg:col-span-8">
+            <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+              <div className="border-b border-[#1E3048] px-5 py-3">
+                <p className="text-xs font-semibold text-[#5A7A9A]">
+                  Annotated Group Photo
+                </p>
               </div>
-            ) : (
-              groupPhotoResult.attendance_logs.map((log: AttendanceLog) => (
-                <div key={log.id} className="flex items-center gap-3 px-5 py-3">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-                  <div>
-                    <p className="text-sm font-semibold text-[#E8EDF5]">
-                      {log.employee.first_name} {log.employee.last_name}
-                    </p>
-                    <p className="text-[10px] text-[#5A7A9A]">
-                      {log.employee.employee_code}
-                    </p>
+              <div className="flex w-full flex-1 items-center justify-center p-2">
+                <img
+                  src={getAnnotatedGroupPhotoUrl(
+                    groupPhotoResult.annotated_image_path,
+                  )}
+                  alt="Annotated Group Photo"
+                  className="max-h-[420px] w-full rounded-lg object-contain"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Scrollable Marked Present List on the right */}
+          <div className="flex flex-col lg:col-span-4">
+            <div className="flex h-full flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+              <div className="border-b border-[#1E3048] px-5 py-3">
+                <p className="text-xs font-semibold text-[#5A7A9A]">
+                  Marked Present ({groupPhotoResult.attendance_logs.length})
+                </p>
+              </div>
+              <div className="max-h-[420px] flex-1 divide-y divide-[#1E3048] overflow-y-auto">
+                {groupPhotoResult.attendance_logs.length === 0 ? (
+                  <div className="p-5 text-center text-xs text-[#5A7A9A]">
+                    No employees recognized. Try adjusting similarity/confidence
+                    settings and upload again.
                   </div>
-                </div>
-              ))
-            )}
+                ) : (
+                  groupPhotoResult.attendance_logs.map((log: AttendanceLog) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-[#1E3048]/20"
+                    >
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                      <div>
+                        <p className="text-sm font-semibold text-[#E8EDF5]">
+                          {log.employee.first_name} {log.employee.last_name}
+                        </p>
+                        <p className="text-[10px] text-[#5A7A9A]">
+                          {log.employee.employee_code}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
-
-        <MediaModal
-          isOpen={mediaModalOpen}
-          onClose={() => setMediaModalOpen(false)}
-          title={modalTitle}
-          type={modalType}
-          src={modalSrc}
-        />
       </div>
     );
   }
@@ -1029,6 +1162,18 @@ function ResultsTab() {
   if (latestSession) {
     const isFailed = latestSession.status === 'failed';
     const isCompleted = latestSession.status === 'completed';
+
+    const isPhotoSession =
+      latestSession.video_name.toLowerCase().endsWith('.jpg') ||
+      latestSession.video_name.toLowerCase().endsWith('.jpeg') ||
+      latestSession.video_name.toLowerCase().endsWith('.png') ||
+      latestSession.video_name.toLowerCase().endsWith('.webp') ||
+      (latestSession.output_video_path &&
+        (latestSession.output_video_path.toLowerCase().endsWith('.jpg') ||
+          latestSession.output_video_path.toLowerCase().endsWith('.jpeg') ||
+          latestSession.output_video_path.toLowerCase().endsWith('.png') ||
+          latestSession.output_video_path.toLowerCase().endsWith('.webp'))) ||
+      false;
 
     return (
       <div className="space-y-5">
@@ -1044,118 +1189,212 @@ function ResultsTab() {
               </span>
             </div>
           </div>
-          {isCompleted && latestSession.output_video_path && (
-            <button
-              onClick={() => setMediaModalOpen(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-4 py-2 text-xs font-semibold text-[#E8EDF5] hover:bg-[#1E3048]"
-            >
-              <Eye className="h-4 w-4" /> Watch Annotated Video
-            </button>
-          )}
         </div>
 
         {isCompleted ? (
           <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard
-                label="Unique Registered"
-                value={latestSession.unique_person_count}
-                icon={Users}
-                color="blue"
-              />
-              <StatCard
-                label="Total Detections"
-                value={latestSession.total_person_count}
-                icon={Eye}
-                color="purple"
-              />
-              <StatCard
-                label="Entries logged"
-                value={latestSession.entry_count}
-                icon={LogIn}
-                color="green"
-              />
-              <StatCard
-                label="Exits logged"
-                value={latestSession.exit_count}
-                icon={LogOut}
-                color="amber"
-              />
-            </div>
+            {isPhotoSession ? (
+              <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12">
+                {/* Embedded Annotated Photo on the left */}
+                <div className="flex flex-col lg:col-span-8">
+                  <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                    <div className="border-b border-[#1E3048] px-5 py-3">
+                      <p className="text-xs font-semibold text-[#5A7A9A]">
+                        Annotated Group Photo
+                      </p>
+                    </div>
+                    <div className="flex w-full flex-1 items-center justify-center p-2">
+                      {latestSession.output_video_path ? (
+                        <img
+                          src={getAttendanceVideoUrl(
+                            latestSession.output_video_path,
+                          )}
+                          alt="Annotated Group Photo"
+                          className="max-h-[420px] w-full rounded-lg object-contain"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center px-10 text-xs text-[#5A7A9A]">
+                          Annotated group photo is not available.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
-              <div className="border-b border-[#1E3048] px-5 py-3">
-                <p className="text-xs font-semibold text-[#5A7A9A]">
-                  Session Attendance Logs ({sessionLogs?.length ?? 0})
-                </p>
-              </div>
-              {logsLoading ? (
-                <div className="flex h-32 items-center justify-center">
-                  <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
-                </div>
-              ) : sessionLogs.length === 0 ? (
-                <div className="p-5 text-center text-xs text-[#5A7A9A]">
-                  No employees detected in this session.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-left text-xs text-[#E8EDF5]">
-                    <thead>
-                      <tr className="border-b border-[#1E3048] bg-[#0A0F1E]/50 font-semibold text-[#5A7A9A]">
-                        <th className="px-5 py-3">Photo</th>
-                        <th className="px-5 py-3">Full Name</th>
-                        <th className="px-5 py-3">Code</th>
-                        <th className="px-5 py-3">First Seen</th>
-                        <th className="px-5 py-3">Last Seen</th>
-                        <th className="px-5 py-3">Dwell Time</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#1E3048]">
-                      {sessionLogs.map((log) => (
-                        <tr
-                          key={log.id}
-                          className="transition-colors hover:bg-[#1E3048]/20"
-                        >
-                          <td className="px-5 py-2">
-                            <div className="h-8 w-8 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E]">
-                              {log.employee.photo_path ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={getEmployeePhotoUrl(
-                                    log.employee.photo_path,
-                                  )}
-                                  alt="Employee"
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full items-center justify-center">
-                                  <UserCircle2 className="h-5 w-5 text-[#5A7A9A]" />
-                                </div>
-                              )}
+                {/* Scrollable Marked Present List on the right */}
+                <div className="flex flex-col lg:col-span-4">
+                  <div className="flex h-full flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                    <div className="border-b border-[#1E3048] px-5 py-3">
+                      <p className="text-xs font-semibold text-[#5A7A9A]">
+                        Marked Present ({sessionLogs?.length ?? 0})
+                      </p>
+                    </div>
+                    <div className="max-h-[420px] flex-1 divide-y divide-[#1E3048] overflow-y-auto">
+                      {logsLoading ? (
+                        <div className="flex h-32 items-center justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
+                        </div>
+                      ) : !sessionLogs || sessionLogs.length === 0 ? (
+                        <div className="p-5 text-center text-xs text-[#5A7A9A]">
+                          No employees recognized.
+                        </div>
+                      ) : (
+                        sessionLogs?.map((log: AttendanceLog) => (
+                          <div
+                            key={log.id}
+                            className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-[#1E3048]/20"
+                          >
+                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+                            <div>
+                              <p className="text-sm font-semibold text-[#E8EDF5]">
+                                {log.employee.first_name}{' '}
+                                {log.employee.last_name}
+                              </p>
+                              <p className="text-[10px] text-[#5A7A9A]">
+                                {log.employee.employee_code}
+                              </p>
                             </div>
-                          </td>
-                          <td className="px-5 py-3 font-semibold">
-                            {log.employee.first_name} {log.employee.last_name}
-                          </td>
-                          <td className="px-5 py-3 font-mono text-[#60A5FA]">
-                            {log.employee.employee_code}
-                          </td>
-                          <td className="px-5 py-3">
-                            {formatDate(log.employee_entry_timestamp)}
-                          </td>
-                          <td className="px-5 py-3">
-                            {formatDate(log.employee_exit_timestamp)}
-                          </td>
-                          <td className="px-5 py-3 text-[#60A5FA]">
-                            {formatDwell(log.dwell_time)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              // Side-by-Side Video Player & Session Stats Box (For History Video sessions)
+              <>
+                <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-12">
+                  {/* Video Player on the left */}
+                  <div className="flex flex-col lg:col-span-8">
+                    <div className="flex w-full flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                      <div className="border-b border-[#1E3048] px-5 py-3">
+                        <p className="text-xs font-semibold text-[#5A7A9A]">
+                          Annotated Video Feed
+                        </p>
+                      </div>
+                      <div className="flex w-full items-center justify-center p-2">
+                        {latestSession.output_video_path ? (
+                          <video
+                            controls
+                            playsInline
+                            className="max-h-[420px] w-full rounded-lg object-contain"
+                            src={getAttendanceVideoUrl(
+                              latestSession.output_video_path,
+                            )}
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center px-10 text-xs text-[#5A7A9A]">
+                            Annotated video feed is not available.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Cards on the right inside a unified container card */}
+                  <div className="flex flex-col lg:col-span-4">
+                    <div className="flex flex-col overflow-hidden rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                      <div className="border-b border-[#1E3048] px-5 py-3">
+                        <p className="text-xs font-semibold text-[#5A7A9A]">
+                          Session Stats
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-6 p-5">
+                        <StatCard
+                          label="Unique Employees Present"
+                          value={latestSession.unique_person_count}
+                          icon={Users}
+                          color="blue"
+                        />
+                        <StatCard
+                          label="Total Sighting Occurrences"
+                          value={latestSession.total_person_count}
+                          icon={Eye}
+                          color="purple"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Session Attendance Logs Table below */}
+                <div className="rounded-xl border border-[#1E3048] bg-[#0D1628]">
+                  <div className="border-b border-[#1E3048] px-5 py-3">
+                    <p className="text-xs font-semibold text-[#5A7A9A]">
+                      Session Attendance Logs ({sessionLogs?.length ?? 0})
+                    </p>
+                  </div>
+                  {logsLoading ? (
+                    <div className="flex h-32 items-center justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-[#5A7A9A]" />
+                    </div>
+                  ) : sessionLogs.length === 0 ? (
+                    <div className="p-5 text-center text-xs text-[#5A7A9A]">
+                      No employees detected in this session.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-left text-xs text-[#E8EDF5]">
+                        <thead>
+                          <tr className="border-b border-[#1E3048] bg-[#0A0F1E]/50 font-semibold text-[#5A7A9A]">
+                            <th className="px-5 py-3">Photo</th>
+                            <th className="px-5 py-3">Full Name</th>
+                            <th className="px-5 py-3">Code</th>
+                            <th className="px-5 py-3">First Seen</th>
+                            <th className="px-5 py-3">Last Seen</th>
+                            <th className="px-5 py-3">Dwell Time</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#1E3048]">
+                          {sessionLogs.map((log) => (
+                            <tr
+                              key={log.id}
+                              className="transition-colors hover:bg-[#1E3048]/20"
+                            >
+                              <td className="px-5 py-2">
+                                <div className="h-8 w-8 overflow-hidden rounded-full border border-[#1E3048] bg-[#0A0F1E]">
+                                  {log.employee.photo_path ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={getEmployeePhotoUrl(
+                                        log.employee.photo_path,
+                                      )}
+                                      alt="Employee"
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="flex h-full items-center justify-center">
+                                      <UserCircle2 className="h-5 w-5 text-[#5A7A9A]" />
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-5 py-3 font-semibold">
+                                {log.employee.first_name}{' '}
+                                {log.employee.last_name}
+                              </td>
+                              <td className="px-5 py-3 font-mono text-[#60A5FA]">
+                                {log.employee.employee_code}
+                              </td>
+                              <td className="px-5 py-3">
+                                {formatDate(log.employee_entry_timestamp)}
+                              </td>
+                              <td className="px-5 py-3">
+                                {formatDate(log.employee_exit_timestamp)}
+                              </td>
+                              <td className="px-5 py-3 text-[#60A5FA]">
+                                {formatDwell(log.dwell_time)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </>
         ) : isFailed ? (
           <div className="flex h-52 flex-col items-center justify-center gap-3 rounded-xl border border-[#1E3048] bg-[#0D1628] p-6 text-center">

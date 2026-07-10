@@ -12,6 +12,7 @@ import {
   processAttendanceVideos,
   listAttendanceSessions,
   getEmployeePhotoUrl,
+  processGroupPhotoAttendance,
 } from '@/lib/api/employees';
 import { ApiError } from '@/types/api';
 import type {
@@ -21,6 +22,8 @@ import type {
   AttendanceUploadedVideo,
   GroupPhotoResult,
 } from '@/types/employees';
+import { listGalleryMedia } from '@/lib/api/gallery';
+import type { GalleryMedia } from '@/types/gallery';
 
 type Tab = 'employees' | 'uploads' | 'results' | 'logs';
 type UploadSubTab = 'groupphoto' | 'video';
@@ -84,6 +87,17 @@ interface AttendanceState {
   processAttVideos: () => Promise<void>;
   setSelectedAttSession: (s: AttendanceVideoSession | null) => void;
   setHistoryOpen: (v: boolean) => void;
+
+  // Global Media Gallery States & Actions
+  galleryPhotos: GalleryMedia[];
+  galleryVideos: GalleryMedia[];
+  loadingGallery: boolean;
+  selectedPhotoId: string | null;
+  selectedVideoIds: string[];
+  fetchGalleryMedia: () => Promise<void>;
+  setSelectedPhotoId: (id: string | null) => void;
+  toggleSelectVideoId: (id: string) => void;
+  clearSelection: () => void;
 
   // Logs
   startDate: string;
@@ -238,15 +252,15 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   setConfThreshold: (v) => set({ confThreshold: v }),
 
   markGroupPhoto: async () => {
-    const { groupPhoto, simThreshold, confThreshold } = get();
-    if (!groupPhoto) return;
+    const { selectedPhotoId, simThreshold, confThreshold } = get();
+    if (!selectedPhotoId) return;
     set({ markingAttendance: true });
     try {
-      const fd = new FormData();
-      fd.append('file', groupPhoto);
-      fd.append('similarity_threshold', String(simThreshold));
-      fd.append('confidence_threshold', String(confThreshold));
-      const res = await markGroupPhotoAttendance(fd);
+      const res = await processGroupPhotoAttendance({
+        gallery_media_id: selectedPhotoId,
+        similarity_threshold: simThreshold,
+        confidence_threshold: confThreshold,
+      });
       set({
         groupPhotoResult: res.data,
         selectedAttSession: null,
@@ -292,16 +306,16 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
   },
 
   processAttVideos: async () => {
-    const { attUploads } = get();
-    if (attUploads.length === 0) return;
+    const { selectedVideoIds } = get();
+    if (selectedVideoIds.length === 0) return;
     try {
       const res = await processAttendanceVideos({
-        videos: attUploads.map((u) => ({ video_path: u.saved_path })),
+        videos: selectedVideoIds.map((id) => ({ gallery_media_id: id })),
       });
       toast.success(`Started ${res.data.length} session(s)`);
       set((s) => ({
         attSessions: [...res.data, ...s.attSessions],
-        attUploads: [],
+        selectedVideoIds: [],
         selectedAttSession: res.data[0] ?? null,
         groupPhotoResult: null,
         activeTab: 'results',
@@ -310,6 +324,44 @@ export const useAttendanceStore = create<AttendanceState>((set, get) => ({
       toast.error(err instanceof ApiError ? err.message : 'Processing failed');
     }
   },
+
+  // Gallery States and Actions
+  galleryPhotos: [],
+  galleryVideos: [],
+  loadingGallery: false,
+  selectedPhotoId: null,
+  selectedVideoIds: [],
+
+  fetchGalleryMedia: async () => {
+    set({ loadingGallery: true });
+    try {
+      const [photosRes, videosRes] = await Promise.all([
+        listGalleryMedia('photo'),
+        listGalleryMedia('video'),
+      ]);
+      set({
+        galleryPhotos: photosRes.data || [],
+        galleryVideos: videosRes.data || [],
+      });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to retrieve media library assets');
+    } finally {
+      set({ loadingGallery: false });
+    }
+  },
+
+  setSelectedPhotoId: (id) => set({ selectedPhotoId: id }),
+
+  toggleSelectVideoId: (id) => {
+    const { selectedVideoIds } = get();
+    if (selectedVideoIds.includes(id)) {
+      set({ selectedVideoIds: selectedVideoIds.filter((x) => x !== id) });
+    } else {
+      set({ selectedVideoIds: [...selectedVideoIds, id] });
+    }
+  },
+
+  clearSelection: () => set({ selectedPhotoId: null, selectedVideoIds: [] }),
 
   setSelectedAttSession: (s) =>
     set({ selectedAttSession: s, groupPhotoResult: null }),

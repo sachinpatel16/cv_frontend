@@ -9,6 +9,7 @@ import type {
   DetectedPerson,
   VisitorAnalytics,
   ProcessSessionPayload,
+  VisitorAttendanceResponse,
 } from '@/types/peopleanalytics';
 
 const BACKEND_URL =
@@ -160,6 +161,44 @@ export async function getVisitorAnalytics(): Promise<
     return response.data;
   } catch (error) {
     handleError(error, 'Failed to fetch visitor analytics');
+  }
+}
+
+/** Get visitor attendance logs by date range */
+export async function getVisitorAttendance(
+  startDate: string,
+  endDate: string,
+): Promise<ApiResponse<VisitorAttendanceResponse[]>> {
+  try {
+    const response = await apiClient.get<
+      ApiResponse<VisitorAttendanceResponse[]>
+    >(`${API_ENDPOINTS.PEOPLEANALYTICS.VISITORS}/attendance`, {
+      params: {
+        start_date: startDate,
+        end_date: endDate,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    handleError(error, 'Failed to fetch visitor attendance');
+  }
+}
+
+/** Register a visitor or convert them to an employee */
+export async function registerVisitor(payload: {
+  identity_id: string;
+  registration_type: 'employee' | 'visitor';
+  first_name: string;
+  last_name: string;
+  employee_code?: string;
+}): Promise<ApiResponse<{ message: string; type: 'employee' | 'visitor' }>> {
+  try {
+    const response = await apiClient.post<
+      ApiResponse<{ message: string; type: 'employee' | 'visitor' }>
+    >(`${API_ENDPOINTS.PEOPLEANALYTICS.VISITORS}/register`, payload);
+    return response.data;
+  } catch (error) {
+    handleError(error, 'Failed to register visitor');
   }
 }
 

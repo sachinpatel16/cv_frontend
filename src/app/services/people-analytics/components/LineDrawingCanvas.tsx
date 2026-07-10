@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { cn } from '@/lib/utils';
 
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000';
@@ -11,17 +12,27 @@ export function LineDrawingCanvas({
   videoSavedPath,
   onLineDraw,
   onSkip,
+  initialLine = null,
+  isReadOnly = false,
+  showMinimalHeader = false,
 }: {
   videoName: string;
   videoFile: File | null;
   videoSavedPath: string | null;
-  onLineDraw: (
+  onLineDraw?: (
     start: [number, number],
     end: [number, number],
     videoW: number,
     videoH: number,
   ) => void;
-  onSkip: () => void;
+  onSkip?: () => void;
+  initialLine?: {
+    start: [number, number];
+    end: [number, number];
+    resolution: { width: number; height: number };
+  } | null;
+  isReadOnly?: boolean;
+  showMinimalHeader?: boolean;
 }) {
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(
     null,
@@ -41,7 +52,7 @@ export function LineDrawingCanvas({
   } | null>(null);
   const [videoUrl, setVideoUrl] = useState<string>('');
 
-  const [showTutorial, setShowTutorial] = useState(true);
+  const [showTutorial, setShowTutorial] = useState(!isReadOnly);
   const [countdown, setCountdown] = useState(5);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -67,7 +78,7 @@ export function LineDrawingCanvas({
 
   // Tutorial countdown
   useEffect(() => {
-    if (!showTutorial) return;
+    if (!showTutorial || isReadOnly) return;
     if (countdown <= 0) {
       const t = setTimeout(() => setShowTutorial(false), 0);
       return () => clearTimeout(t);
@@ -76,10 +87,11 @@ export function LineDrawingCanvas({
       setCountdown((c) => c - 1);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [countdown, showTutorial]);
+  }, [countdown, showTutorial, isReadOnly]);
 
   // Escape key to clear line
   useEffect(() => {
+    if (isReadOnly) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         handleClear();
@@ -89,7 +101,7 @@ export function LineDrawingCanvas({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [isReadOnly]);
 
   const drawCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -167,12 +179,31 @@ export function LineDrawingCanvas({
     const canvas = canvasRef.current;
     if (!media || !canvas) return;
 
-    canvas.width = media.clientWidth;
-    canvas.height = media.clientHeight;
-    setCanvasSize({ width: media.clientWidth, height: media.clientHeight });
+    // Calculate displayed video size under object-fit: contain
+    const videoRatio = videoResolution.width / videoResolution.height;
+    const elementWidth = media.clientWidth;
+    const elementHeight = media.clientHeight;
+    const elementRatio = elementWidth / elementHeight;
+
+    let displayedWidth = elementWidth;
+    let displayedHeight = elementHeight;
+
+    if (elementRatio > videoRatio) {
+      // Height constrained (letterboxed)
+      displayedHeight = elementHeight;
+      displayedWidth = elementHeight * videoRatio;
+    } else {
+      // Width constrained (pillarboxed)
+      displayedWidth = elementWidth;
+      displayedHeight = elementWidth / videoRatio;
+    }
+
+    canvas.width = displayedWidth;
+    canvas.height = displayedHeight;
+    setCanvasSize({ width: displayedWidth, height: displayedHeight });
 
     drawCanvas();
-  }, [drawCanvas]);
+  }, [drawCanvas, videoResolution]);
 
   useEffect(() => {
     if (loaded) {
@@ -189,7 +220,31 @@ export function LineDrawingCanvas({
     drawCanvas();
   }, [startPoint, endPoint, drawCanvas]);
 
+  // Load and scale initial line if provided (e.g. review step)
+  useEffect(() => {
+    if (
+      loaded &&
+      canvasRef.current &&
+      initialLine &&
+      canvasSize?.width &&
+      canvasSize?.height
+    ) {
+      const canvas = canvasRef.current;
+      const scaleX = canvas.width / initialLine.resolution.width;
+      const scaleY = canvas.height / initialLine.resolution.height;
+      setStartPoint({
+        x: initialLine.start[0] * scaleX,
+        y: initialLine.start[1] * scaleY,
+      });
+      setEndPoint({
+        x: initialLine.end[0] * scaleX,
+        y: initialLine.end[1] * scaleY,
+      });
+    }
+  }, [loaded, initialLine, canvasSize?.width, canvasSize?.height]);
+
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isReadOnly) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -202,7 +257,7 @@ export function LineDrawingCanvas({
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !startPoint) return;
+    if (isReadOnly || !isDrawing || !startPoint) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -213,6 +268,7 @@ export function LineDrawingCanvas({
   };
 
   const handleMouseUp = () => {
+    if (isReadOnly) return;
     setIsDrawing(false);
   };
 
@@ -227,6 +283,7 @@ export function LineDrawingCanvas({
   };
 
   const handleConfirm = () => {
+    if (!onLineDraw) return;
     if (!startPoint || !endPoint || !canvasRef.current) {
       toast.error(
         'Please draw a line first by clicking and dragging on the video preview.',
@@ -267,32 +324,29 @@ export function LineDrawingCanvas({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-[#5A7A9A]">
-            <span className="font-semibold text-[#E8EDF5]">{videoName}</span> —
-            Draw the entry/exit line
-          </p>
-          <p className="text-[10px] text-[#5A7A9A]/70">
-            Click and drag to draw a line. Cross from OUT (red) to IN (green) to
-            count as entry. Press{' '}
-            <kbd className="rounded border border-[#1E3048] bg-[#0A0F1E] px-1.5 py-0.5 font-mono text-[9px] text-[#E8EDF5]">
-              ESC
-            </kbd>{' '}
-            to clear.
-          </p>
+    <div className="w-full space-y-4">
+      {!showMinimalHeader && (
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-[#5A7A9A]">
+              <span className="font-semibold text-[#E8EDF5]">{videoName}</span>{' '}
+              -{' '}
+              {isReadOnly
+                ? 'Reviewing crossing line'
+                : 'Draw the entry/exit line'}
+            </p>
+            <p className="text-[10px] text-[#5A7A9A]/70">
+              {isReadOnly
+                ? 'Previewing the gate position for entry/exit tracking.'
+                : 'Click and drag to draw a line. Cross from OUT (red) to IN (green) to count as entry. Press ESC to clear.'}
+            </p>
+          </div>
         </div>
-        {!loaded && (
-          <span className="flex items-center gap-1 text-[10px] text-[#5A7A9A]">
-            <Loader2 className="h-3 w-3 animate-spin" /> Loading video…
-          </span>
-        )}
-      </div>
+      )}
 
       <div
         ref={containerRef}
-        className="relative mx-auto flex aspect-video max-h-[360px] w-full max-w-[640px] items-center justify-center overflow-hidden rounded-lg border border-[#1E3048]/60 bg-black/60"
+        className="relative mx-auto flex aspect-video max-h-[480px] w-full max-w-none items-center justify-center overflow-hidden rounded-lg border border-[#1E3048]/60 bg-black/60"
       >
         <style>{`
           @keyframes tutorial-stretch {
@@ -326,7 +380,7 @@ export function LineDrawingCanvas({
           }
         `}</style>
 
-        {showTutorial && (
+        {showTutorial && !isReadOnly && (
           <div className="absolute inset-0 z-20 flex flex-col justify-between bg-black/55 p-5 text-center backdrop-blur-[3px] select-none">
             {/* Header Instructions */}
             <div className="space-y-1">
@@ -409,10 +463,13 @@ export function LineDrawingCanvas({
         {loaded && (
           <canvas
             ref={canvasRef}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            className="absolute cursor-crosshair"
+            onMouseDown={isReadOnly ? undefined : handleMouseDown}
+            onMouseMove={isReadOnly ? undefined : handleMouseMove}
+            onMouseUp={isReadOnly ? undefined : handleMouseUp}
+            className={cn(
+              'absolute',
+              isReadOnly ? 'cursor-default' : 'cursor-crosshair',
+            )}
             style={{
               top: '50%',
               left: '50%',
@@ -424,38 +481,42 @@ export function LineDrawingCanvas({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        {startPoint && endPoint && (
-          <button
-            onClick={handleFlip}
-            className="rounded-lg border border-[#F59E0B]/30 px-3 py-1.5 text-xs font-semibold text-[#F59E0B] transition-colors hover:border-[#F59E0B]/60 hover:bg-[#F59E0B]/5"
-          >
-            Flip Directions
-          </button>
-        )}
-        {startPoint && endPoint && (
-          <button
-            onClick={handleClear}
-            className="rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-          >
-            Clear Line
-          </button>
-        )}
-        <button
-          onClick={onSkip}
-          className="rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
-        >
-          Skip (use defaults)
-        </button>
-        {startPoint && endPoint && (
-          <button
-            onClick={handleConfirm}
-            className="ml-auto rounded-lg bg-[#1565C0] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#1976D2]"
-          >
-            Confirm Line →
-          </button>
-        )}
-      </div>
+      {!isReadOnly && (
+        <div className="flex items-center gap-2">
+          {startPoint && endPoint && (
+            <button
+              onClick={handleFlip}
+              className="rounded-lg border border-[#F59E0B]/30 px-3 py-1.5 text-xs font-semibold text-[#F59E0B] transition-colors hover:border-[#F59E0B]/60 hover:bg-[#F59E0B]/5"
+            >
+              Flip Directions
+            </button>
+          )}
+          {startPoint && endPoint && (
+            <button
+              onClick={handleClear}
+              className="rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            >
+              Clear Line
+            </button>
+          )}
+          {onSkip && (
+            <button
+              onClick={onSkip}
+              className="rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            >
+              Skip (use defaults)
+            </button>
+          )}
+          {startPoint && endPoint && (
+            <button
+              onClick={handleConfirm}
+              className="ml-auto rounded-lg bg-[#1565C0] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#1976D2]"
+            >
+              Confirm Line →
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

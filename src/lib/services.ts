@@ -65,7 +65,7 @@ export const SERVICES_REGISTRY: Service[] = [
   },
   {
     id: 'people-analytics',
-    label: 'People Analysis',
+    label: 'People Analytics',
     icon: Eye,
     href: '/services/people-analytics',
     description:

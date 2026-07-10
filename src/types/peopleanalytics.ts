@@ -28,6 +28,7 @@ export interface AnalyticsSession {
   unique_person_count: number | null;
   total_person_count: number | null;
   first_time_visitor_count: number | null;
+  first_time_visitors?: FirstTimeVisitorDetail[] | null;
   peak_occupancy: number | null;
   average_occupancy: number | null;
   entry_count: number | null;
@@ -35,6 +36,16 @@ export interface AnalyticsSession {
   occupancy_timeline: OccupancyPoint[] | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface FirstTimeVisitorDetail {
+  identity_id: string;
+  photo_path: string | null;
+  first_seen: number;
+  last_seen: number;
+  dwell_time: number;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 /** A detected person within a session */
@@ -70,4 +81,20 @@ export interface ProcessSessionPayload {
   line_end?: [number, number];
   similarity_threshold?: number;
   confidence_threshold?: number;
+}
+
+export interface VisitorAttendanceResponse {
+  id: string;
+  session_id: string | null;
+  identity_id: string;
+  first_seen: number;
+  last_seen: number;
+  occurrence_count: number;
+  visitor_entry_timestamp: string;
+  visitor_exit_timestamp: string;
+  created_at: string;
+  photo_path: string | null;
+  dwell_time: number;
+  first_name?: string | null;
+  last_name?: string | null;
 }
