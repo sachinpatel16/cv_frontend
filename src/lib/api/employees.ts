@@ -194,9 +194,9 @@ export async function deleteAttendanceUpload(
   }
 }
 
-/** Process uploaded attendance videos as background tasks */
+/** Process gallery attendance videos as background tasks */
 export async function processAttendanceVideos(payload: {
-  videos: { video_path: string }[];
+  videos: { gallery_media_id: string }[];
 }): Promise<ApiResponse<AttendanceVideoSession[]>> {
   try {
     const response = await apiClient.post<
@@ -233,6 +233,23 @@ export async function getAttendanceSessionDetails(
     return response.data;
   } catch (error) {
     handleError(error, 'Failed to fetch attendance session details');
+  }
+}
+
+/** Process attendance via a gallery group photo */
+export async function processGroupPhotoAttendance(payload: {
+  gallery_media_id: string;
+  similarity_threshold?: number;
+  confidence_threshold?: number;
+}): Promise<ApiResponse<GroupPhotoResult>> {
+  try {
+    const response = await apiClient.post<ApiResponse<GroupPhotoResult>>(
+      '/employees/attendance/photo/process',
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    handleError(error, 'Failed to process group photo attendance');
   }
 }
 

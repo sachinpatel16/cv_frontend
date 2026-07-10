@@ -1304,6 +1304,8 @@ function AnalysisPageContent() {
                             <PersonAnalysisConfigTab
                               showThresholds={activeStep === 'run'}
                               isReadOnly={activeStep === 'run'}
+                              onRun={handlePersonProcessWrapper}
+                              running={personProcessing}
                             />
                           </div>
                         )}
@@ -1413,29 +1415,6 @@ function AnalysisPageContent() {
                         </button>
                       </div>
                     )}
-
-                  {/* Step 4 (Run) Actions: Review & Trigger Processing */}
-                  {activeStep === 'run' && selectedAnalyses.personAnalysis && (
-                    <div className="col-span-full mt-2">
-                      <button
-                        disabled={personProcessing}
-                        onClick={handlePersonProcessWrapper}
-                        className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl bg-[#1565C0] py-3.5 text-sm font-bold text-white shadow-lg shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2] hover:shadow-[#1565C0]/35 disabled:opacity-60"
-                      >
-                        {personProcessing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Triggering People Analytics...
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 fill-current" />
-                            Run Analysis Now
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
                 </>
               )}
             </div>
