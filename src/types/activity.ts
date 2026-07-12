@@ -92,6 +92,7 @@ export interface UnifiedHistoryItem {
   displayName: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
+  filepath?: string;
   // activity-only
   media_type?: 'photo' | 'video';
   config?: ActivityConfig | null;

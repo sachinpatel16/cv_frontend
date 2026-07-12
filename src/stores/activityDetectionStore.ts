@@ -507,6 +507,7 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
                   created_at: m.created_at,
                   media_type: m.media_type,
                   config: m.config,
+                  filepath: m.filepath,
                 }))
             : [];
 
