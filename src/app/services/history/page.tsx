@@ -14,8 +14,14 @@ import {
   ChevronRight,
   ArrowLeft,
   AlertTriangle,
+  Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Activity Detection imports
+import { useActivityDetectionStore } from '@/stores/activityDetectionStore';
+import { ResultsTab as ActivityResultsTab } from '@/app/services/activity-detection/activity/components/ResultsTab';
+import { ProcessingTab as ActivityProcessingTab } from '@/app/services/activity-detection/activity/components/ProcessingTab';
 
 // Object Count imports
 import { deleteObjectCountMedia } from '@/lib/api/objectcount';
@@ -32,7 +38,7 @@ import { useHistoryPageStore } from '@/stores/historyPageStore';
 import { ResultsTab as PersonAnalysisResultsTab } from '@/app/services/people-analytics/components/ResultsTab';
 
 type ViewMode = 'list' | 'results';
-type ResultsTabName = 'object-count' | 'person-analysis';
+type ResultsTabName = 'object-count' | 'person-analysis' | 'activity-detection';
 
 function StatusBadge({ status }: { status: string }) {
   const statusColors: Record<string, string> = {
@@ -89,6 +95,14 @@ function HistoryPageContent() {
   } = usePersonAnalysisStore();
   const personSessionId = personSession?.id;
 
+  // Activity Detection Store Hooks
+  const {
+    unifiedHistory: actHistory,
+    processStatus: actProcessStatus,
+    smokingSession: actSmokingSession,
+    selectedDetector: actSelectedDetector,
+  } = useActivityDetectionStore();
+
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
@@ -121,6 +135,30 @@ function HistoryPageContent() {
             }
           } catch (err) {
             toast.error('Failed to load people analytics session details.');
+          }
+        } else if (sessionType === 'activity-detection') {
+          try {
+            const hist = useActivityDetectionStore.getState().unifiedHistory;
+            const item = hist.find((h) => h.id === sessionId);
+            if (item) {
+              await useActivityDetectionStore.getState().loadHistoryItem(item);
+              setActiveResultsTab('activity-detection');
+              setViewMode('results');
+            } else {
+              await useActivityDetectionStore.getState().fetchHistory();
+              const refreshedItem = useActivityDetectionStore
+                .getState()
+                .unifiedHistory.find((h) => h.id === sessionId);
+              if (refreshedItem) {
+                await useActivityDetectionStore
+                  .getState()
+                  .loadHistoryItem(refreshedItem);
+                setActiveResultsTab('activity-detection');
+                setViewMode('results');
+              }
+            }
+          } catch (err) {
+            toast.error('Failed to load activity detection session details.');
           }
         }
       };
@@ -189,7 +227,7 @@ function HistoryPageContent() {
 
   const viewHistoryItem = async (item: {
     id: string;
-    type: 'object-count' | 'person-analysis';
+    type: 'object-count' | 'person-analysis' | 'activity-detection';
     originalData: any;
   }) => {
     if (item.type === 'object-count') {
@@ -199,19 +237,24 @@ function HistoryPageContent() {
       });
       await fetchObjectCountDetails(item.id);
       setActiveResultsTab('object-count');
-    } else {
+    } else if (item.type === 'person-analysis') {
       usePersonAnalysisStore.setState({
         selectedSession: item.originalData,
       });
       await usePersonAnalysisStore.getState().selectSession(item.originalData);
       setActiveResultsTab('person-analysis');
+    } else {
+      await useActivityDetectionStore
+        .getState()
+        .loadHistoryItem(item.originalData);
+      setActiveResultsTab('activity-detection');
     }
     setViewMode('results');
   };
 
   const handleDeleteTrigger = (
     id: string,
-    type: 'object-count' | 'person-analysis',
+    type: 'object-count' | 'person-analysis' | 'activity-detection',
     e: React.MouseEvent,
   ) => {
     e.stopPropagation();
@@ -234,6 +277,19 @@ function HistoryPageContent() {
       type: 'person-analysis' as const,
       filename: run.video_name || 'People Analytics Session',
       filepath: run.video_path,
+      status: run.status,
+      created_at: run.created_at,
+      originalData: run,
+    })),
+    ...(actHistory || []).map((run) => ({
+      id: run.id,
+      type: 'activity-detection' as const,
+      filename:
+        run.displayName ||
+        (run.flavor === 'smoking'
+          ? 'Smoking Detection Run'
+          : 'Activity Detection Run'),
+      filepath: run.filepath ?? '',
       status: run.status,
       created_at: run.created_at,
       originalData: run,
@@ -286,13 +342,19 @@ function HistoryPageContent() {
       {viewMode === 'results' && (
         <div className="space-y-6">
           <div className="flex gap-2 border-b border-[#1E3048]">
-            {activeResultsTab === 'object-count' ? (
+            {activeResultsTab === 'object-count' && (
               <button className="border-b-2 border-[#1565C0] px-4 py-2 text-sm font-semibold text-[#E8EDF5]">
                 Object Count Results
               </button>
-            ) : (
+            )}
+            {activeResultsTab === 'person-analysis' && (
               <button className="border-b-2 border-[#1565C0] px-4 py-2 text-sm font-semibold text-[#E8EDF5]">
                 People Analytics Results
+              </button>
+            )}
+            {activeResultsTab === 'activity-detection' && (
+              <button className="border-b-2 border-[#1565C0] px-4 py-2 text-sm font-semibold text-[#E8EDF5]">
+                Activity Detection Results
               </button>
             )}
           </div>
@@ -301,6 +363,18 @@ function HistoryPageContent() {
           {activeResultsTab === 'person-analysis' && (
             <PersonAnalysisResultsTab />
           )}
+          {activeResultsTab === 'activity-detection' &&
+            (() => {
+              const status =
+                actSelectedDetector === 'smoking'
+                  ? (actSmokingSession?.status ?? 'pending')
+                  : (actProcessStatus?.status ?? 'pending');
+
+              if (status === 'pending' || status === 'processing') {
+                return <ActivityProcessingTab />;
+              }
+              return <ActivityResultsTab />;
+            })()}
         </div>
       )}
 
@@ -352,8 +426,10 @@ function HistoryPageContent() {
                         <div className="flex max-w-[320px] items-center gap-2 sm:max-w-md">
                           {item.type === 'object-count' ? (
                             <BarChart2 className="h-4 w-4 shrink-0 text-[#60A5FA]" />
-                          ) : (
+                          ) : item.type === 'person-analysis' ? (
                             <Eye className="h-4 w-4 shrink-0 text-[#60A5FA]" />
+                          ) : (
+                            <Activity className="h-4 w-4 shrink-0 text-[#60A5FA]" />
                           )}
                           <span className="block truncate leading-none">
                             {item.filename}
@@ -363,7 +439,11 @@ function HistoryPageContent() {
                       <td className="py-3.5 text-[#5A7A9A]">
                         {item.type === 'object-count'
                           ? 'Object Count & Track'
-                          : 'People ReID & Crossing'}
+                          : item.type === 'person-analysis'
+                            ? 'People ReID & Crossing'
+                            : item.originalData.flavor === 'smoking'
+                              ? 'Smoking Detection'
+                              : 'Activity & Theft Detection'}
                       </td>
                       <td className="py-3.5">
                         <StatusBadge status={item.status} />

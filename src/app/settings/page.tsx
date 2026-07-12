@@ -202,7 +202,26 @@ function DualRangeSlider({
 
 export default function SettingsPage() {
   const { data: session } = useSession();
-  const { gridMin, gridMax, setGridMin, setGridMax } = useUserStore();
+  const {
+    gridMin,
+    gridMax,
+    setGridMin,
+    setGridMax,
+    showNewInvestigation,
+    showInvestigation,
+    showHistory,
+    showObjectCount,
+    showActivityDetection,
+    showPeopleAnalytics,
+    showGallery,
+    setShowNewInvestigation,
+    setShowInvestigation,
+    setShowHistory,
+    setShowObjectCount,
+    setShowActivityDetection,
+    setShowPeopleAnalytics,
+    setShowGallery,
+  } = useUserStore();
   const [name, setName] = useState(session?.user?.name ?? '');
   const [email] = useState(session?.user?.email ?? '');
   const [defaultClass, setDefaultClass] = useState('person');
@@ -285,6 +304,51 @@ export default function SettingsPage() {
             />
           </div>
         </Field>
+      </Section>
+
+      <Section title="Navigation Settings">
+        <Toggle
+          label="New Investigation"
+          description="Show 'New Investigation' link in the sidebar."
+          checked={showNewInvestigation}
+          onChange={() => setShowNewInvestigation(!showNewInvestigation)}
+        />
+        <Toggle
+          label="Investigation"
+          description="Show unified 'Investigation' (wizard) link in the sidebar."
+          checked={showInvestigation}
+          onChange={() => setShowInvestigation(!showInvestigation)}
+        />
+        <Toggle
+          label="History"
+          description="Show 'History' link in the sidebar."
+          checked={showHistory}
+          onChange={() => setShowHistory(!showHistory)}
+        />
+        <Toggle
+          label="Gallery"
+          description="Show 'Gallery' service link in the sidebar."
+          checked={showGallery}
+          onChange={() => setShowGallery(!showGallery)}
+        />
+        <Toggle
+          label="Object Count"
+          description="Show legacy 'Object Count' service link in the sidebar."
+          checked={showObjectCount}
+          onChange={() => setShowObjectCount(!showObjectCount)}
+        />
+        <Toggle
+          label="Activity Detection"
+          description="Show legacy 'Activity Detection' service link in the sidebar."
+          checked={showActivityDetection}
+          onChange={() => setShowActivityDetection(!showActivityDetection)}
+        />
+        <Toggle
+          label="People Analytics"
+          description="Show legacy 'People Analytics' service link in the sidebar."
+          checked={showPeopleAnalytics}
+          onChange={() => setShowPeopleAnalytics(!showPeopleAnalytics)}
+        />
       </Section>
 
       <Section title="Notifications">

@@ -14,6 +14,7 @@ import {
   getSmokingSessionStatus,
   getSmokingSessionHistory,
   deleteSmokingSession,
+  triggerSmokingAnalysis,
 } from '@/lib/api/smokingdetect';
 import { ApiError } from '@/types/api';
 import type {
@@ -25,6 +26,7 @@ import type {
   UnifiedHistoryItem,
 } from '@/types/activity';
 import type { SmokingSession, SmokingEvent } from '@/types/smokingdetect';
+import type { GalleryMedia } from '@/types/gallery';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detector IDs & defaults
@@ -161,6 +163,14 @@ interface ActivityDetectionState {
 
   // ── Reset ────────────────────────────────────────────────────────────────────
   reset: () => void;
+
+  // ── Unified page bridge ────────────────────────────────────────────────────
+  /** Seed the store from a GalleryMedia item (used by unified analysis page). */
+  initFromGalleryMedia: (media: GalleryMedia) => void;
+  /** Trigger activity processing from gallery media (non-smoking path). */
+  startProcessingFromGallery: (media: GalleryMedia) => Promise<void>;
+  /** Trigger smoking analysis from gallery media. */
+  startSmokingFromGallery: (media: GalleryMedia) => Promise<void>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -219,10 +229,12 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       // ── SMOKING: upload + trigger in one call ────────────────────────────────
       if (selectedDetector === 'smoking') {
         try {
-          const res = await uploadVideoForAnalysis(
-            uploadedFile,
-            get().interval,
-          );
+          // Upload to gallery first
+          const uploadRes = await uploadActivityMedia([uploadedFile], 'video');
+          const media = uploadRes.data[0];
+
+          // Trigger smoking analysis on the gallery media item
+          const res = await triggerSmokingAnalysis(media.id, get().interval);
           set({
             smokingSession: res.data,
             smokingEvents: [],
@@ -485,15 +497,17 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
 
         const activityRows: UnifiedHistoryItem[] =
           activityRes.status === 'fulfilled'
-            ? activityRes.value.data.map((m) => ({
-                id: m.id,
-                flavor: 'activity' as const,
-                displayName: m.filename,
-                status: m.status,
-                created_at: m.created_at,
-                media_type: m.media_type,
-                config: m.config,
-              }))
+            ? activityRes.value.data
+                .filter((m) => !!m.config)
+                .map((m) => ({
+                  id: m.id,
+                  flavor: 'activity' as const,
+                  displayName: m.filename,
+                  status: m.status,
+                  created_at: m.created_at,
+                  media_type: m.media_type,
+                  config: m.config,
+                }))
             : [];
 
         const merged = [...smokingRows, ...activityRows].sort(
@@ -587,6 +601,112 @@ export const useActivityDetectionStore = create<ActivityDetectionState>(
       } catch (err) {
         if (err instanceof ApiError) toast.error(err.message);
         else toast.error('Failed to delete history item.');
+      }
+    },
+
+    // ── Unified page bridge ────────────────────────────────────────────────────
+
+    initFromGalleryMedia: (media) => {
+      const activityMedia: ActivityMedia = {
+        id: media.id,
+        filename: media.filename,
+        filepath: media.filepath,
+        media_type: media.media_type as 'photo' | 'video',
+        status: 'pending',
+        created_at: media.created_at,
+      };
+      set({
+        uploadedMedia: activityMedia,
+        uploadedFile: null,
+        mediaType: media.media_type as 'photo' | 'video',
+        processStatus: null,
+        alerts: [],
+        summary: null,
+        smokingSession: null,
+        smokingEvents: [],
+        smokingFilename: null,
+      });
+    },
+
+    startProcessingFromGallery: async (media) => {
+      const {
+        detectFlags,
+        polygonPoints,
+        interval,
+        loiteringThreshold,
+        occupancyLimit,
+        selectedActivities,
+      } = get();
+
+      // Ensure the store has this media seeded
+      const activityMedia: ActivityMedia = {
+        id: media.id,
+        filename: media.filename,
+        filepath: media.filepath,
+        media_type: media.media_type as 'photo' | 'video',
+        status: 'pending',
+        created_at: media.created_at,
+      };
+      set({ uploadedMedia: activityMedia, submitting: true });
+
+      const payload: ActivityProcessPayload = {
+        interval,
+        detect_fall: detectFlags.fall,
+        detect_aggression: detectFlags.aggression,
+        detect_intrusion: detectFlags.intrusion,
+        detect_loitering: detectFlags.loitering,
+        loitering_threshold: loiteringThreshold,
+        detect_occupancy: detectFlags.occupancy,
+        occupancy_limit: occupancyLimit,
+        detect_sleeping: detectFlags.sleeping,
+        detect_walking: detectFlags.walking,
+        selected_activities: selectedActivities,
+        polygon_points: polygonPoints,
+      };
+
+      try {
+        await processActivityMedia(media.id, payload);
+        const statusRes = await getActivityProcessStatus(media.id);
+        set({
+          processStatus: statusRes.data,
+          jobFlavor: 'activity',
+          viewedMedia: activityMedia,
+          viewedStatus: statusRes.data,
+          viewedAlerts: [],
+          viewedSummary: null,
+        });
+        toast.success('Activity detection started…');
+      } catch (err) {
+        if (err instanceof ApiError) toast.error(err.message);
+        else toast.error('Failed to start activity detection.');
+        throw err;
+      } finally {
+        set({ submitting: false });
+      }
+    },
+
+    startSmokingFromGallery: async (media) => {
+      const { interval } = get();
+      set({ submitting: true });
+      try {
+        const res = await triggerSmokingAnalysis(media.id, interval);
+        set({
+          smokingSession: res.data,
+          smokingEvents: [],
+          smokingFilename: media.filename,
+          jobFlavor: 'smoking',
+          viewedSmokingSession: res.data,
+          viewedSmokingEvents: [],
+          // Set viewed state so Results tab displays it when ready
+          activeTab: 'processing',
+        });
+        toast.success('Smoking analysis started…');
+      } catch (err) {
+        if (err instanceof ApiError) toast.error(err.message);
+        else toast.error('Failed to start smoking analysis.');
+        throw err;
+      } finally {
+        set({ submitting: false });
       }
     },
 
