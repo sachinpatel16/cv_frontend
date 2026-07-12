@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
   Video,
@@ -74,9 +74,16 @@ function HistoryPageContent() {
     deleteHistoryItem,
   } = useHistoryPageStore();
 
+  const router = useRouter();
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
   const sessionType = searchParams.get('type');
+
+  const handleBack = () => {
+    router.push('/services/history');
+    setViewMode('list');
+    loadHistory();
+  };
 
   // Object Count Store Hooks
   const {
@@ -318,7 +325,7 @@ function HistoryPageContent() {
           <div className="flex items-center gap-2">
             {viewMode === 'results' && (
               <button
-                onClick={() => setViewMode('list')}
+                onClick={handleBack}
                 className="rounded-lg p-1 text-[#5A7A9A] transition-colors hover:bg-[#1E3048] hover:text-[#E8EDF5]"
               >
                 <ArrowLeft className="h-4 w-4" />

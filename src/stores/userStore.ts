@@ -75,13 +75,13 @@ export const useUserStore = create<UserState>()(
         }),
 
       // Defaults to true (shown by default)
-      showNewInvestigation: true,
+      showNewInvestigation: false,
       showInvestigation: true,
       showHistory: true,
-      showObjectCount: true,
-      showActivityDetection: true,
-      showPeopleAnalytics: true,
-      showGallery: true,
+      showObjectCount: false,
+      showActivityDetection: false,
+      showPeopleAnalytics: false,
+      showGallery: false,
 
       setShowNewInvestigation: (val) => set({ showNewInvestigation: val }),
       setShowInvestigation: (val) => set({ showInvestigation: val }),

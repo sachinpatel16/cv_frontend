@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Undo2, Trash2, CheckCircle2, Info } from 'lucide-react';
+import { Loader2, Undo2, Eraser, CheckCircle2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const BACKEND_URL =
@@ -358,10 +358,10 @@ export function PolygonCanvas({
         {points.length > 0 && (
           <button
             onClick={handleUndo}
-            className="flex items-center gap-1.5 rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
+            title={closed ? 'Reopen polygon' : 'Undo last point'}
+            className="flex items-center justify-center rounded-lg border border-[#1E3048] p-1.5 text-[#5A7A9A] hover:bg-[#1E3048] hover:text-[#E8EDF5]"
           >
-            <Undo2 className="h-3 w-3" />
-            {closed ? 'Reopen' : 'Undo'}
+            <Undo2 className="h-3.5 w-3.5" />
           </button>
         )}
         {points.length > 0 && (
@@ -369,8 +369,8 @@ export function PolygonCanvas({
             onClick={handleClear}
             className="flex items-center gap-1.5 rounded-lg border border-red-500/20 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
           >
-            <Trash2 className="h-3 w-3" />
-            Clear All
+            <Eraser className="h-3 w-3" />
+            Clear
           </button>
         )}
         {points.length >= 3 && !closed && (
@@ -384,10 +384,10 @@ export function PolygonCanvas({
         {closed && !confirmed && (
           <button
             onClick={handleConfirm}
-            className="ml-auto flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-400"
+            className="flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-400"
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
-            Confirm Zone →
+            Confirm
           </button>
         )}
         {confirmed && (
@@ -398,7 +398,7 @@ export function PolygonCanvas({
               setPoints([]);
               onClear();
             }}
-            className="ml-auto rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048]"
+            className="rounded-lg border border-[#1E3048] px-3 py-1.5 text-xs text-[#5A7A9A] hover:bg-[#1E3048]"
           >
             Redraw
           </button>

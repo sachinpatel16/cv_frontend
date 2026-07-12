@@ -27,6 +27,7 @@ interface AdvancedConfigurationProps {
   trackVehicles: boolean;
   trackCustom: boolean;
   selectedCustomClasses: string[];
+  hideRunButton?: boolean;
 }
 
 export default function AdvancedConfiguration({
@@ -52,6 +53,7 @@ export default function AdvancedConfiguration({
   trackVehicles,
   trackCustom,
   selectedCustomClasses,
+  hideRunButton = false,
 }: AdvancedConfigurationProps) {
   return (
     <div className="space-y-6 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
@@ -220,43 +222,46 @@ export default function AdvancedConfiguration({
         </p>
       </div>
 
-      <div className="pt-2">
-        {details.status === 'failed' && (
-          <div className="mb-4 flex items-start gap-2 rounded border border-red-400/15 bg-red-400/5 p-3 text-[11px] text-red-400">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>
-              Previous tracker run failed. You can tweak thresholds and trigger
-              a new analysis queue.
-            </span>
-          </div>
-        )}
-
-        <button
-          onClick={() => handleTriggerAnalysis(details.id)}
-          disabled={
-            triggeringAnalysisId !== null ||
-            details.status === 'processing' ||
-            (!trackPeople &&
-              !trackVehicles &&
-              (!trackCustom || selectedCustomClasses.length === 0))
-          }
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#1565C0] text-sm font-semibold text-white transition-colors hover:bg-[#1565C0]/90 disabled:pointer-events-none disabled:opacity-40"
-        >
-          {triggeringAnalysisId !== null || details.status === 'processing' ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {details.status === 'processing'
-                ? 'Processing...'
-                : 'Triggering...'}
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4 fill-white" />
-              Run Object Tracking
-            </>
+      {!hideRunButton && (
+        <div className="pt-2">
+          {details.status === 'failed' && (
+            <div className="mb-4 flex items-start gap-2 rounded border border-red-400/15 bg-red-400/5 p-3 text-[11px] text-red-400">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Previous tracker run failed. You can tweak thresholds and
+                trigger a new analysis queue.
+              </span>
+            </div>
           )}
-        </button>
-      </div>
+
+          <button
+            onClick={() => handleTriggerAnalysis(details.id)}
+            disabled={
+              triggeringAnalysisId !== null ||
+              details.status === 'processing' ||
+              (!trackPeople &&
+                !trackVehicles &&
+                (!trackCustom || selectedCustomClasses.length === 0))
+            }
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#1565C0] text-sm font-semibold text-white transition-colors hover:bg-[#1565C0]/90 disabled:pointer-events-none disabled:opacity-40"
+          >
+            {triggeringAnalysisId !== null ||
+            details.status === 'processing' ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {details.status === 'processing'
+                  ? 'Processing...'
+                  : 'Triggering...'}
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 fill-white" />
+                Run Object Tracking
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

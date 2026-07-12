@@ -251,9 +251,19 @@ export function LineDrawingCanvas({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    setStartPoint({ x, y });
-    setEndPoint({ x, y });
-    setIsDrawing(true);
+    if (
+      !startPoint ||
+      (startPoint &&
+        endPoint &&
+        !(startPoint.x === endPoint.x && startPoint.y === endPoint.y))
+    ) {
+      setStartPoint({ x, y });
+      setEndPoint({ x, y });
+      setIsDrawing(true);
+    } else {
+      setEndPoint({ x, y });
+      setIsDrawing(false);
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -269,7 +279,15 @@ export function LineDrawingCanvas({
 
   const handleMouseUp = () => {
     if (isReadOnly) return;
-    setIsDrawing(false);
+    if (startPoint && endPoint) {
+      const dist = Math.hypot(
+        endPoint.x - startPoint.x,
+        endPoint.y - startPoint.y,
+      );
+      if (dist > 5) {
+        setIsDrawing(false);
+      }
+    }
   };
 
   const handleMediaLoad = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -324,7 +342,29 @@ export function LineDrawingCanvas({
   };
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-3">
+      {!isReadOnly && (
+        <div className="rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-2.5 text-center shadow-inner select-none">
+          {!startPoint && !endPoint ? (
+            <p className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#60A5FA]">
+              <span className="inline-block h-2 w-2 animate-ping rounded-full bg-red-500" />
+              Phase 1: Click on the video to set OUT point (Red)
+            </p>
+          ) : startPoint &&
+            (!endPoint ||
+              (startPoint.x === endPoint.x && startPoint.y === endPoint.y)) ? (
+            <p className="flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-400">
+              <span className="inline-block h-2 w-2 animate-ping rounded-full bg-emerald-500" />
+              Phase 2: Click on the video to set IN point (Green)
+            </p>
+          ) : (
+            <p className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-400">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-500" />
+              Phase 3: Confirm Gate line below, or click to redraw
+            </p>
+          )}
+        </div>
+      )}
       {!showMinimalHeader && (
         <div className="flex items-center justify-between">
           <div>
