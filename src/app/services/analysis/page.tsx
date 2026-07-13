@@ -23,11 +23,26 @@ import {
   Calendar,
   ChevronRight,
   Check,
-  ArrowRightLeft,
   Users,
   Clock,
+  ArrowRightLeft,
   UserCheck,
   TrendingUp,
+  User,
+  Car,
+  TrafficCone,
+  Dog,
+  Briefcase,
+  Trophy,
+  Utensils,
+  Apple,
+  Armchair,
+  Laptop,
+  Cpu,
+  BookOpen,
+  Wrench,
+  Info,
+  PlayCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { listGalleryMedia, getGalleryMediaUrl } from '@/lib/api/gallery';
@@ -60,9 +75,192 @@ import { useAnalysisPageStore } from '@/stores/analysisPageStore';
 import { ConfigureTab as PersonAnalysisConfigTab } from '@/app/services/people-analytics/components/ConfigureTab';
 import { ResultsTab as PersonAnalysisResultsTab } from '@/app/services/people-analytics/components/ResultsTab';
 
+// Activity Detection imports
+import { useActivityDetectionStore } from '@/stores/activityDetectionStore';
+import type { ActivityDetectorId } from '@/stores/activityDetectionStore';
+import {
+  DETECTOR_CATALOG,
+  getDetectorDef,
+} from '@/app/services/activity-detection/activity/components/ActivityDetectorSidebar';
+import { PolygonCanvas } from '@/app/services/activity-detection/activity/components/PolygonCanvas';
+import { ResultsTab as ActivityResultsTab } from '@/app/services/activity-detection/activity/components/ResultsTab';
+import { ProcessingTab as ActivityProcessingTab } from '@/app/services/activity-detection/activity/components/ProcessingTab';
+import {
+  SLIDER_MIN,
+  SLIDER_MAX,
+  stepToInterval,
+  intervalToStep,
+  stepLabel,
+} from '@/lib/frameIntervalUtils';
+
 import type { GalleryMedia } from '@/types/gallery';
 import Link from 'next/link';
 import Image from 'next/image';
+
+interface AnalysisItem {
+  id: string;
+  label: string;
+  description: string;
+  icon: any;
+  analysisType: 'object-count' | 'person-analysis' | 'activity-detection';
+  detectorId?: ActivityDetectorId;
+  accentBg?: string;
+  accentText?: string;
+  accentBorder?: string;
+  accent?: string;
+}
+
+const getCocoClassIcon = (cls: string) => {
+  const lower = cls.toLowerCase();
+  if (lower === 'person') return User;
+  if (
+    [
+      'bicycle',
+      'car',
+      'motorcycle',
+      'airplane',
+      'bus',
+      'train',
+      'truck',
+      'boat',
+    ].includes(lower)
+  )
+    return Car;
+  if (
+    ['traffic light', 'fire hydrant', 'stop sign', 'parking meter'].includes(
+      lower,
+    )
+  )
+    return TrafficCone;
+  if (
+    [
+      'bird',
+      'cat',
+      'dog',
+      'horse',
+      'sheep',
+      'cow',
+      'elephant',
+      'bear',
+      'zebra',
+      'giraffe',
+    ].includes(lower)
+  )
+    return Dog;
+  if (['backpack', 'umbrella', 'handbag', 'tie', 'suitcase'].includes(lower))
+    return Briefcase;
+  if (
+    [
+      'frisbee',
+      'skis',
+      'snowboard',
+      'sports ball',
+      'kite',
+      'baseball bat',
+      'baseball glove',
+      'skateboard',
+      'surfboard',
+      'tennis racket',
+    ].includes(lower)
+  )
+    return Trophy;
+  if (
+    ['bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl'].includes(
+      lower,
+    )
+  )
+    return Utensils;
+  if (
+    [
+      'banana',
+      'apple',
+      'sandwich',
+      'orange',
+      'broccoli',
+      'carrot',
+      'hot dog',
+      'pizza',
+      'donut',
+      'cake',
+    ].includes(lower)
+  )
+    return Apple;
+  if (
+    [
+      'bench',
+      'chair',
+      'couch',
+      'potted plant',
+      'bed',
+      'dining table',
+      'toilet',
+    ].includes(lower)
+  )
+    return Armchair;
+  if (
+    ['tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone'].includes(
+      lower,
+    )
+  )
+    return Laptop;
+  if (['microwave', 'oven', 'toaster', 'sink', 'refrigerator'].includes(lower))
+    return Cpu;
+  if (['book', 'clock', 'vase', 'teddy bear'].includes(lower)) return BookOpen;
+  if (['scissors', 'hair drier', 'toothbrush'].includes(lower)) return Wrench;
+  return BarChart2;
+};
+
+const getUnifiedAnalysisItems = (): AnalysisItem[] => {
+  const items: AnalysisItem[] = [
+    {
+      id: 'person-analysis',
+      label: 'People Analytics',
+      description:
+        'Identify crossing gates, staff vs guest splits, and occupancy count.',
+      icon: Eye,
+      analysisType: 'person-analysis',
+      accentBg: 'bg-violet-500/10',
+      accentText: 'text-violet-400',
+      accentBorder: 'border-violet-500/40',
+      accent: '#8B5CF6',
+    },
+  ];
+
+  COCO_CLASSES.forEach((cls) => {
+    items.push({
+      id: `object-count-${cls}`,
+      label:
+        cls
+          .split(' ')
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(' ') + ' Count',
+      description: `Count and track ${cls} items in the video feed using YOLOv8.`,
+      icon: getCocoClassIcon(cls),
+      analysisType: 'object-count',
+      accentBg: 'bg-[#1565C0]/10',
+      accentText: 'text-[#60A5FA]',
+      accentBorder: 'border-[#1565C0]/40',
+      accent: '#1565C0',
+    });
+  });
+
+  DETECTOR_CATALOG.filter((d) => d.status === 'live').forEach((det) => {
+    items.push({
+      id: `activity-${det.id}`,
+      label: det.label,
+      description: det.description,
+      icon: det.Icon,
+      analysisType: 'activity-detection',
+      detectorId: det.id,
+      accentBg: det.accentBg,
+      accentText: det.accentText,
+      accentBorder: det.accentBorder,
+      accent: det.accent,
+    });
+  });
+
+  return items;
+};
 
 type Step = 'history' | 'upload' | 'select' | 'configure' | 'run' | 'results';
 type ResultsTabName = 'object-count' | 'person-analysis' | 'activity-detection';
@@ -104,6 +302,8 @@ function AnalysisPageContent() {
     setSelectedAnalyses,
     toggleAnalysis,
     clearMedia,
+    selectedActivityDetector,
+    setSelectedActivityDetector,
   } = useAnalysisPageStore();
 
   const {
@@ -174,6 +374,92 @@ function AnalysisPageContent() {
   } = usePersonAnalysisStore();
   const personSessionId = personSession?.id;
 
+  const selectedClassName = ocTrackPeople
+    ? 'Person'
+    : ocSelectedCustomClasses.length > 0
+      ? ocSelectedCustomClasses
+          .map((c) => c.charAt(0).toUpperCase() + c.slice(1))
+          .join(', ')
+      : 'Object';
+
+  // Activity Detection Store Hooks
+  const {
+    detectFlags: actDetectFlags,
+    setFlag: actSetFlag,
+    polygonPoints: actPolygonPoints,
+    setPolygonPoints: actSetPolygonPoints,
+    loiteringThreshold: actLoiteringThreshold,
+    setLoiteringThreshold: actSetLoiteringThreshold,
+    occupancyLimit: actOccupancyLimit,
+    setOccupancyLimit: actSetOccupancyLimit,
+    interval: actInterval,
+    setInterval: actSetInterval,
+    processStatus: actProcessStatus,
+    smokingSession: actSmokingSession,
+    jobFlavor: actJobFlavor,
+    applyDetectorDefaults: actApplyDefaults,
+    initFromGalleryMedia: actInitFromGallery,
+    startProcessingFromGallery: actStartProcessing,
+    startSmokingFromGallery: actStartSmoking,
+    pollStatus: actPollStatus,
+    submitting: actSubmitting,
+    unifiedHistory: actHistory,
+    fetchHistory: actFetchHistory,
+  } = useActivityDetectionStore();
+
+  const actSliderStep = intervalToStep(actInterval);
+  const actShowROI = actDetectFlags.loitering || actDetectFlags.intrusion;
+  const actCanRun =
+    !actSubmitting &&
+    !!uploadedMedia &&
+    (!actShowROI || actPolygonPoints !== null);
+
+  const handleSelectAnalysis = (item: AnalysisItem) => {
+    if (item.analysisType === 'object-count') {
+      setSelectedAnalyses({
+        objectCount: true,
+        personAnalysis: false,
+        activityDetection: false,
+      });
+      setSelectedActivityDetector(null);
+
+      // Set the selected class in the store
+      const className = item.id.replace('object-count-', '');
+      const store = useObjectCountingStore.getState();
+      if (className === 'person') {
+        store.setTrackPeople(true);
+        store.setTrackVehicles(false);
+        store.setTrackCustom(false);
+        store.setSelectedCustomClasses([]);
+      } else {
+        store.setTrackPeople(false);
+        store.setTrackVehicles(false);
+        store.setTrackCustom(true);
+        store.setSelectedCustomClasses([className]);
+      }
+    } else if (item.analysisType === 'person-analysis') {
+      setSelectedAnalyses({
+        objectCount: false,
+        personAnalysis: true,
+        activityDetection: false,
+      });
+      setSelectedActivityDetector(null);
+    } else if (item.analysisType === 'activity-detection') {
+      setSelectedAnalyses({
+        objectCount: false,
+        personAnalysis: false,
+        activityDetection: true,
+      });
+      setSelectedActivityDetector(item.detectorId || null);
+
+      // Auto-apply defaults for selected activity detector
+      if (item.detectorId) {
+        actApplyDefaults(item.detectorId);
+      }
+    }
+    setActiveStep('configure');
+  };
+
   const searchParams = useSearchParams();
   const mode = searchParams.get('mode');
 
@@ -187,15 +473,26 @@ function AnalysisPageContent() {
       });
       // If a mode query is present, launch the upload step immediately
       setActiveStep('upload');
-      if (mode === 'object-count') setActiveResultsTab('object-count');
-      else if (mode === 'people-analytics')
+      if (mode === 'object-count') {
+        setActiveResultsTab('object-count');
+        const store = useObjectCountingStore.getState();
+        store.setTrackPeople(true);
+        store.setTrackVehicles(false);
+        store.setTrackCustom(false);
+        store.setSelectedCustomClasses([]);
+      } else if (mode === 'people-analytics') {
         setActiveResultsTab('person-analysis');
+      }
     }
   }, [mode, setSelectedAnalyses, setActiveStep, setActiveResultsTab]);
 
   const loadHistory = useCallback(async () => {
-    await Promise.allSettled([fetchObjectCountRuns(), fetchPersonSessions()]);
-  }, [fetchObjectCountRuns, fetchPersonSessions]);
+    await Promise.allSettled([
+      fetchObjectCountRuns(),
+      fetchPersonSessions(),
+      actFetchHistory(),
+    ]);
+  }, [fetchObjectCountRuns, fetchPersonSessions, actFetchHistory]);
 
   useEffect(() => {
     if (activeStep === 'history') {
@@ -211,7 +508,7 @@ function AnalysisPageContent() {
 
   const hasSelection = Object.values(selectedAnalyses).some(Boolean);
 
-  // Sync selection to Object Counting & Person Analysis stores on transition to Configure
+  // Sync selection to Object Counting, Person Analysis & Activity stores on transition to Configure
   useEffect(() => {
     if (activeStep === 'configure' && uploadedMedia) {
       if (selectedAnalyses.objectCount) {
@@ -248,12 +545,27 @@ function AnalysisPageContent() {
           videoLines: {},
         });
       }
+
+      if (selectedAnalyses.activityDetection && selectedActivityDetector) {
+        // Apply the chosen detector defaults and seed media
+        actApplyDefaults(selectedActivityDetector);
+        actInitFromGallery(uploadedMedia);
+        useActivityDetectionStore.setState({
+          selectedDetector: selectedActivityDetector,
+          jobFlavor:
+            selectedActivityDetector === 'smoking' ? 'smoking' : 'activity',
+        });
+      }
     }
   }, [
     activeStep,
     selectedAnalyses.objectCount,
     selectedAnalyses.personAnalysis,
+    selectedAnalyses.activityDetection,
+    selectedActivityDetector,
     uploadedMedia,
+    actApplyDefaults,
+    actInitFromGallery,
   ]);
 
   const handlePersonProcessWrapper = async () => {
@@ -325,6 +637,27 @@ function AnalysisPageContent() {
     personSession?.status,
   ]);
 
+  // Polling for Activity Detection status in Results step
+  useEffect(() => {
+    if (activeStep !== 'results' || !selectedAnalyses.activityDetection) return;
+    if (selectedActivityDetector === 'smoking') {
+      const s = actSmokingSession?.status;
+      if (!actSmokingSession || s === 'completed' || s === 'failed') return;
+    } else {
+      const s = actProcessStatus?.status;
+      if (!actProcessStatus || s === 'completed' || s === 'failed') return;
+    }
+    const timer = setInterval(() => actPollStatus(), 10_000);
+    return () => clearInterval(timer);
+  }, [
+    activeStep,
+    selectedAnalyses.activityDetection,
+    selectedActivityDetector,
+    actSmokingSession,
+    actProcessStatus,
+    actPollStatus,
+  ]);
+
   // Auto-back to history if media is deleted
   useEffect(() => {
     if (activeStep === 'results') {
@@ -355,6 +688,9 @@ function AnalysisPageContent() {
 
   // Unified Run triggers
   const [running, setRunning] = useState(false);
+  const [showPersonVideoPreview, setShowPersonVideoPreview] = useState(false);
+  const [showPersonConfigVideoPreview, setShowPersonConfigVideoPreview] =
+    useState(false);
 
   const runAnalyses = async () => {
     if (!uploadedMedia) return;
@@ -417,6 +753,16 @@ function AnalysisPageContent() {
         }
       }
 
+      // 3. Run Activity Detection
+      if (selectedAnalyses.activityDetection && selectedActivityDetector) {
+        if (selectedActivityDetector === 'smoking') {
+          await actStartSmoking(uploadedMedia);
+        } else {
+          await actStartProcessing(uploadedMedia);
+        }
+        setActiveResultsTab('activity-detection');
+      }
+
       setActiveStep('results');
     } catch (err: any) {
       toast.error(err.message || 'Failed to start analysis');
@@ -428,7 +774,7 @@ function AnalysisPageContent() {
   // Click handler to select and view history details (routes to the standalone History page)
   const viewHistoryItem = (item: {
     id: string;
-    type: 'object-count' | 'person-analysis';
+    type: 'object-count' | 'person-analysis' | 'activity-detection';
   }) => {
     router.push(`/services/history?session_id=${item.id}&type=${item.type}`);
   };
@@ -436,7 +782,7 @@ function AnalysisPageContent() {
   // Inline delete handler for history rows
   const deleteHistoryItem = async (
     id: string,
-    type: 'object-count' | 'person-analysis',
+    type: 'object-count' | 'person-analysis' | 'activity-detection',
     e: React.MouseEvent,
   ) => {
     e.stopPropagation();
@@ -449,8 +795,10 @@ function AnalysisPageContent() {
     try {
       if (type === 'object-count') {
         await deleteObjectCountMedia(id);
-      } else {
+      } else if (type === 'person-analysis') {
         await deleteAnalyticsSession(id);
+      } else {
+        await useActivityDetectionStore.getState().removeMedia(id);
       }
       toast.success('Investigation deleted successfully');
       loadHistory();
@@ -475,6 +823,19 @@ function AnalysisPageContent() {
       type: 'person-analysis' as const,
       filename: run.video_name || 'Person Analysis Session',
       filepath: run.video_path,
+      status: run.status,
+      created_at: run.created_at,
+      originalData: run,
+    })),
+    ...(actHistory || []).map((run) => ({
+      id: run.id,
+      type: 'activity-detection' as const,
+      filename:
+        run.displayName ||
+        (run.flavor === 'smoking'
+          ? 'Smoking Detection Run'
+          : 'Activity Detection Run'),
+      filepath: run.filepath ?? '',
       status: run.status,
       created_at: run.created_at,
       originalData: run,
@@ -657,8 +1018,10 @@ function AnalysisPageContent() {
                         <div className="flex max-w-[320px] items-center gap-2 sm:max-w-md">
                           {item.type === 'object-count' ? (
                             <BarChart2 className="h-4 w-4 shrink-0 text-[#60A5FA]" />
-                          ) : (
+                          ) : item.type === 'person-analysis' ? (
                             <Eye className="h-4 w-4 shrink-0 text-[#60A5FA]" />
+                          ) : (
+                            <Activity className="h-4 w-4 shrink-0 text-[#60A5FA]" />
                           )}
                           <span className="block truncate leading-none">
                             {item.filename}
@@ -668,7 +1031,11 @@ function AnalysisPageContent() {
                       <td className="py-3.5 text-[#5A7A9A]">
                         {item.type === 'object-count'
                           ? 'Object Count & Track'
-                          : 'People ReID & Crossing'}
+                          : item.type === 'person-analysis'
+                            ? 'People ReID & Crossing'
+                            : item.originalData.flavor === 'smoking'
+                              ? 'Smoking Detection'
+                              : 'Activity & Theft Detection'}
                       </td>
                       <td className="py-3.5">
                         <StatusBadge status={item.status} />
@@ -812,6 +1179,19 @@ function AnalysisPageContent() {
                 selectedAnalyses.objectCount && <ObjectCountResultsTab />}
               {activeResultsTab === 'person-analysis' &&
                 selectedAnalyses.personAnalysis && <PersonAnalysisResultsTab />}
+              {activeResultsTab === 'activity-detection' &&
+                selectedAnalyses.activityDetection &&
+                (() => {
+                  const status =
+                    selectedActivityDetector === 'smoking'
+                      ? (actSmokingSession?.status ?? 'pending')
+                      : (actProcessStatus?.status ?? 'pending');
+
+                  if (status === 'pending' || status === 'processing') {
+                    return <ActivityProcessingTab />;
+                  }
+                  return <ActivityResultsTab />;
+                })()}
             </div>
           )}
 
@@ -940,307 +1320,46 @@ function AnalysisPageContent() {
 
               {activeStep !== 'upload' && (
                 <>
-                  {/* Left Column: Checklist / Source File Preview */}
-                  <div className="space-y-6 lg:col-span-4">
-                    {uploadedMedia &&
-                    (activeStep === 'configure' || activeStep === 'run') &&
-                    selectedAnalyses.objectCount ? (
-                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                        <div className="flex items-center justify-between border-b border-[#1E3048]/40 pb-2">
-                          <h3 className="text-sm font-semibold text-[#E8EDF5]">
-                            Source File Preview
-                          </h3>
-                        </div>
-                        <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-[#1E3048] bg-black">
-                          {uploadedMedia.media_type === 'video' ? (
-                            <video
-                              src={getGalleryMediaUrl(uploadedMedia.filepath)}
-                              controls
-                              muted
-                              preload="metadata"
-                              className="h-full w-full object-contain"
-                            />
-                          ) : (
-                            <div className="relative h-full w-full">
-                              <Image
-                                src={getGalleryMediaUrl(uploadedMedia.filepath)}
-                                alt="Source photo preview"
-                                fill
-                                className="object-contain"
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Video stats */}
-                        <div className="space-y-2.5 rounded-lg bg-[#0A0F1E]/60 p-3 text-xs">
-                          <div className="flex justify-between border-b border-[#1E3048]/40 pb-2">
-                            <span className="text-[#5A7A9A]">Name</span>
-                            <span className="max-w-[180px] truncate font-semibold text-[#E8EDF5]">
-                              {uploadedMedia.filename}
-                            </span>
-                          </div>
-                          <div className="flex justify-between border-b border-[#1E3048]/40 pb-2">
-                            <span className="text-[#5A7A9A]">Type</span>
-                            <span className="font-semibold text-[#E8EDF5] capitalize">
-                              {uploadedMedia.media_type}
-                            </span>
-                          </div>
-                          <div className="flex justify-between border-b border-[#1E3048]/40 pb-2">
-                            <span className="text-[#5A7A9A]">Created</span>
-                            <span className="font-semibold text-[#E8EDF5]">
-                              {new Date(
-                                uploadedMedia.created_at,
-                              ).toLocaleDateString(undefined, {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-[#5A7A9A]">File ID</span>
-                            <span
-                              className="max-w-[140px] truncate font-mono text-[10px] text-[#5A7A9A]"
-                              title={uploadedMedia.id}
-                            >
-                              {uploadedMedia.id}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : activeStep === 'configure' &&
-                      selectedAnalyses.personAnalysis ? (
-                      /* People Analytics Reports Grid Card */
-                      <div className="flex-1 space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                        <div className="border-b border-[#1E3048]/65 pb-3">
-                          <span className="rounded bg-[#1565C0]/15 px-2 py-0.5 text-[9px] font-bold tracking-widest text-[#60A5FA] uppercase">
-                            Features
-                          </span>
-                          <h2 className="mt-1 text-sm font-semibold text-[#E8EDF5]">
-                            People Analytics Reports
-                          </h2>
-                          <p className="text-[10px] leading-relaxed text-[#5A7A9A]">
-                            Unlock these reports once processing is complete.
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          {[
-                            {
-                              name: 'Attendance Sync',
-                              desc: 'Automatically register clock-in and attendance logs for identified staff.',
-                              icon: CheckCircle2,
-                              color:
-                                'text-teal-400 bg-teal-500/10 border-teal-500/15',
-                            },
-                            {
-                              name: 'Staff & Guest Split',
-                              desc: 'Intelligently classify and segment employees from walk-in guest visitors.',
-                              icon: Layers,
-                              color:
-                                'text-violet-400 bg-violet-500/10 border-violet-500/15',
-                            },
-                            {
-                              name: 'Flow Counts',
-                              desc: 'Track bidirectional entry and exit counts at your crossing gate line.',
-                              icon: ArrowRightLeft,
-                              color:
-                                'text-[#60A5FA] bg-[#1565C0]/10 border-[#1565C0]/15',
-                            },
-                            {
-                              name: 'Live Occupancy',
-                              desc: 'Real-time presence tracking and active zone occupant counts.',
-                              icon: Users,
-                              color:
-                                'text-emerald-400 bg-emerald-500/10 border-emerald-500/15',
-                            },
-                            {
-                              name: 'Visitor Traffic',
-                              desc: 'Compare total absolute footfall count against unique visitor metrics.',
-                              icon: BarChart2,
-                              color:
-                                'text-cyan-400 bg-cyan-500/10 border-cyan-500/15',
-                            },
-                            {
-                              name: 'Dwell Time Log',
-                              desc: 'Monitor average check-in durations and customer dwell patterns.',
-                              icon: Clock,
-                              color:
-                                'text-amber-400 bg-amber-500/10 border-amber-500/15',
-                            },
-                            {
-                              name: 'Face Registry',
-                              desc: 'Keep visual index records of all detected individuals with timestamps.',
-                              icon: UserCheck,
-                              color:
-                                'text-pink-400 bg-pink-500/10 border-pink-500/15',
-                            },
-                            {
-                              name: 'Traffic Peak Curves',
-                              desc: 'Visualize busiest hourly intervals and daily traffic trends.',
-                              icon: TrendingUp,
-                              color:
-                                'text-rose-400 bg-rose-500/10 border-rose-500/15',
-                            },
-                          ].map((item) => {
-                            const Icon = item.icon;
-                            return (
-                              <div
-                                key={item.name}
-                                className="group flex flex-col justify-between rounded-xl border border-[#1E3048]/60 bg-[#0A0F1E] p-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#1565C0]/35"
-                              >
-                                <div
-                                  className={cn(
-                                    'flex h-7 w-7 items-center justify-center rounded-lg border',
-                                    item.color,
-                                  )}
-                                >
-                                  <Icon className="h-4 w-4" />
-                                </div>
-                                <div className="mt-3">
-                                  <h4 className="text-[11px] font-bold tracking-wide text-[#E8EDF5]">
-                                    {item.name}
-                                  </h4>
-                                  <p className="mt-0.5 text-[9px] leading-snug text-[#5A7A9A]">
-                                    {item.desc}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : activeStep === 'run' ? null : (
-                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                        <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
-                          <Layers className="h-4 w-4 text-[#1565C0]" />
-                          2. Choose Analyses
-                        </h2>
-                        <p className="text-xs text-[#5A7A9A]">
-                          Select one or multiple analyses to run on this video:
-                        </p>
-
-                        <div className="space-y-2.5">
-                          {[
-                            {
-                              id: 'objectCount',
-                              label: 'Object Count',
-                              desc: 'Detect and track custom items (vehicles, people, etc.)',
-                              icon: BarChart2,
-                            },
-                            {
-                              id: 'personAnalysis',
-                              label: 'People Analytics',
-                              desc: 'Identify crossing gates, entry/exit, and occupancy count',
-                              icon: Eye,
-                            },
-                            {
-                              id: 'activityDetection',
-                              label: 'Activity Detection',
-                              desc: 'Detect behavioral alerts (falls, loitering, fighting)',
-                              icon: Activity,
-                            },
-                          ].map(({ id, label, desc, icon: Icon }) => {
-                            const disabled = !uploadedMedia;
-                            return (
-                              <div
-                                key={id}
-                                onClick={() => {
-                                  if (disabled) {
-                                    toast.error(
-                                      'Please select a video file first.',
-                                    );
-                                    return;
-                                  }
-                                  toggleAnalysis(id as any);
-                                }}
-                                className={cn(
-                                  'flex items-start gap-3 rounded-lg border p-3 transition-all select-none',
-                                  selectedAnalyses[
-                                    id as keyof typeof selectedAnalyses
-                                  ]
-                                    ? 'border-[#1565C0] bg-[#1565C0]/5'
-                                    : 'border-[#1E3048] bg-[#0A0F1E]',
-                                  disabled
-                                    ? 'cursor-not-allowed opacity-40'
-                                    : 'cursor-pointer hover:border-[#1E3048]/80',
-                                )}
-                              >
-                                <div
-                                  className={cn(
-                                    'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all',
-                                    selectedAnalyses[
-                                      id as keyof typeof selectedAnalyses
-                                    ]
-                                      ? 'border-[#60A5FA] bg-[#1565C0]'
-                                      : 'border-[#1E3048] bg-[#0D1628]',
-                                  )}
-                                >
-                                  {selectedAnalyses[
-                                    id as keyof typeof selectedAnalyses
-                                  ] && (
-                                    <CheckCircle2 className="h-3 w-3 text-white" />
-                                  )}
-                                </div>
-                                <div className="space-y-0.5">
-                                  <span className="flex items-center gap-1.5 text-xs font-semibold text-[#E8EDF5]">
-                                    <Icon className="h-3.5 w-3.5 text-[#5A7A9A]" />
-                                    {label}
-                                  </span>
-                                  <p className="text-[10px] leading-relaxed text-[#5A7A9A]">
-                                    {desc}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {uploadedMedia && activeStep === 'select' && (
-                          <button
-                            disabled={!hasSelection}
-                            onClick={() => setActiveStep('configure')}
-                            className={cn(
-                              'flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs font-semibold text-white transition-all',
-                              hasSelection
-                                ? 'bg-[#1565C0] hover:bg-[#1976D2]'
-                                : 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-50',
-                            )}
-                          >
-                            Configure Selected Analysis
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right Column: Previews & Configurations */}
+                  {/* Left Column: Media Preview (select) / Compact Source preview (configure) */}
                   <div
                     className={cn(
-                      'flex h-full flex-col space-y-6',
-                      activeStep === 'select' ||
-                        (activeStep === 'configure' &&
-                          selectedAnalyses.personAnalysis)
-                        ? 'lg:col-span-8'
-                        : 'lg:col-span-12',
+                      'space-y-6',
+                      activeStep === 'select'
+                        ? 'lg:col-span-7'
+                        : 'lg:col-span-4',
+                      (activeStep === 'run' || activeStep === 'configure') &&
+                        selectedAnalyses.personAnalysis
+                        ? 'hidden'
+                        : '',
                     )}
                   >
                     {activeStep === 'select' && (
-                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5 shadow-2xl">
                         <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
                           <Video className="h-4 w-4 text-[#1565C0]" />
                           Media Preview
                         </h2>
                         {uploadedMedia ? (
                           <div className="overflow-hidden rounded-lg border border-[#1E3048] bg-black">
-                            <video
-                              src={getGalleryMediaUrl(uploadedMedia.filepath)}
-                              controls
-                              preload="metadata"
-                              className="h-auto max-h-[480px] w-full object-contain"
-                            />
+                            {uploadedMedia.media_type === 'video' ? (
+                              <video
+                                src={getGalleryMediaUrl(uploadedMedia.filepath)}
+                                controls
+                                preload="metadata"
+                                className="h-auto max-h-[480px] w-full object-contain"
+                              />
+                            ) : (
+                              <div className="relative aspect-video w-full">
+                                <Image
+                                  src={getGalleryMediaUrl(
+                                    uploadedMedia.filepath,
+                                  )}
+                                  alt="Media preview"
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="flex aspect-video w-full flex-col items-center justify-center rounded-lg border border-[#1E3048] bg-[#0A0F1E] p-6 text-center text-[#5A7A9A]">
@@ -1254,14 +1373,178 @@ function AnalysisPageContent() {
                       </div>
                     )}
 
-                    {(activeStep === 'configure' || activeStep === 'run') && (
+                    {(activeStep === 'configure' || activeStep === 'run') &&
+                      uploadedMedia && (
+                        <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-4 shadow-xl">
+                          <h3 className="text-xs font-bold tracking-wider text-[#E8EDF5] uppercase">
+                            Source Media
+                          </h3>
+                          <div className="relative aspect-video max-h-[160px] w-full overflow-hidden rounded-lg border border-[#1E3048] bg-black">
+                            {uploadedMedia.media_type === 'video' ? (
+                              <video
+                                src={getGalleryMediaUrl(uploadedMedia.filepath)}
+                                controls
+                                muted
+                                preload="metadata"
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <div className="relative h-full w-full">
+                                <Image
+                                  src={getGalleryMediaUrl(
+                                    uploadedMedia.filepath,
+                                  )}
+                                  alt="Source photo preview"
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                            )}
+                          </div>
+                          <div className="space-y-2 rounded-lg bg-[#0A0F1E]/60 p-2.5 text-[10px]">
+                            <div className="flex justify-between border-b border-[#1E3048]/40 pb-1.5">
+                              <span className="text-[#5A7A9A]">Filename</span>
+                              <span className="max-w-[140px] truncate font-semibold text-[#E8EDF5]">
+                                {uploadedMedia.filename}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-[#5A7A9A]">Type</span>
+                              <span className="font-semibold text-[#E8EDF5] capitalize">
+                                {uploadedMedia.media_type}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                  </div>
+
+                  {/* Right Column: Choose Analysis flat list (select) / Configurations (configure) */}
+                  <div
+                    className={cn(
+                      'flex h-full flex-col space-y-6',
+                      activeStep === 'select'
+                        ? 'lg:col-span-5'
+                        : 'lg:col-span-8',
+                      (activeStep === 'run' || activeStep === 'configure') &&
+                        selectedAnalyses.personAnalysis
+                        ? 'lg:col-span-12'
+                        : '',
+                    )}
+                  >
+                    {activeStep === 'select' && (
+                      <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5 shadow-2xl">
+                        <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                          <Layers className="h-4 w-4 text-[#1565C0]" />
+                          2. Choose Analysis
+                        </h2>
+                        <p className="text-xs text-[#5A7A9A]">
+                          Select a report to generate for this video:
+                        </p>
+
+                        <div className="scrollbar-thin grid max-h-[500px] grid-cols-1 gap-2.5 overflow-y-auto pr-1">
+                          {getUnifiedAnalysisItems().map((item) => {
+                            const disabled = !uploadedMedia;
+                            const Icon = item.icon;
+                            const isSelectedCustom =
+                              ocSelectedCustomClasses.includes(
+                                item.id.replace('object-count-', ''),
+                              );
+                            const isSelectedPerson =
+                              item.id === 'object-count-person' &&
+                              ocTrackPeople &&
+                              !ocTrackCustom;
+
+                            let isSelected = false;
+                            if (item.analysisType === 'object-count') {
+                              isSelected =
+                                selectedAnalyses.objectCount &&
+                                (isSelectedCustom || isSelectedPerson);
+                            } else if (
+                              item.analysisType === 'person-analysis'
+                            ) {
+                              isSelected = selectedAnalyses.personAnalysis;
+                            } else if (
+                              item.analysisType === 'activity-detection'
+                            ) {
+                              isSelected =
+                                selectedAnalyses.activityDetection &&
+                                selectedActivityDetector === item.detectorId;
+                            }
+
+                            const typeTextColor =
+                              item.analysisType === 'object-count'
+                                ? 'text-amber-400'
+                                : item.analysisType === 'person-analysis'
+                                  ? 'text-sky-400'
+                                  : 'text-emerald-400';
+
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => {
+                                  if (disabled) {
+                                    toast.error(
+                                      'Please select a video file first.',
+                                    );
+                                    return;
+                                  }
+                                  handleSelectAnalysis(item);
+                                }}
+                                className={cn(
+                                  'flex items-start gap-3 rounded-lg border p-3.5 transition-all duration-150 select-none',
+                                  isSelected
+                                    ? `${item.accentBg} ${item.accentBorder}`
+                                    : 'border-[#1E3048] bg-[#0A0F1E]',
+                                  disabled
+                                    ? 'cursor-not-allowed opacity-40'
+                                    : 'cursor-pointer hover:border-[#1E3048]/80 hover:bg-[#0A0F1E]/65',
+                                )}
+                              >
+                                <div
+                                  className={cn(
+                                    'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-all',
+                                    isSelected
+                                      ? item.accentBorder
+                                      : 'border-[#1E3048]',
+                                  )}
+                                >
+                                  {isSelected && (
+                                    <div
+                                      className="h-2 w-2 rounded-full"
+                                      style={{ backgroundColor: item.accent }}
+                                    />
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1 space-y-0.5">
+                                  <span
+                                    className={cn(
+                                      'flex items-center gap-1.5 text-xs font-semibold',
+                                      typeTextColor,
+                                    )}
+                                  >
+                                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                                    {item.label}
+                                  </span>
+                                  <p className="line-clamp-2 text-[10px] leading-relaxed text-[#5A7A9A]">
+                                    {item.description}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {activeStep === 'configure' && (
                       <div className="flex h-full flex-1 flex-col space-y-6">
                         {selectedAnalyses.objectCount && (
                           <div className="object-counting-config-wrapper space-y-4">
                             <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
                               <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
                                 <BarChart2 className="h-4 w-4 text-[#1565C0]" />
-                                Configure Object Count
+                                Configure {selectedClassName} Count
                               </h2>
                               <button
                                 onClick={() => setActiveStep('select')}
@@ -1273,24 +1556,45 @@ function AnalysisPageContent() {
                             </div>
 
                             {uploadedMedia && (
-                              <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                                <CocoCategorySelection
+                              <div className="space-y-4">
+                                <AdvancedConfiguration
+                                  confidenceThreshold={ocConfidence}
+                                  setConfidenceThreshold={setOcConfidence}
+                                  minTrackFrames={ocMinTrackFrames}
+                                  setMinTrackFrames={setOcMinTrackFrames}
+                                  trackBuffer={ocTrackBuffer}
+                                  setTrackBuffer={setOcTrackBuffer}
+                                  gmcMethod={ocGmc}
+                                  setGmcMethod={setOcGmc}
+                                  imgsz={ocResolution}
+                                  setImgsz={setOcResolution}
+                                  device={ocDevice}
+                                  setDevice={setOcDevice}
+                                  availableReidClasses={availableReidClasses}
+                                  reidClasses={ocReidClasses}
+                                  setReidClasses={setOcReidClasses}
+                                  details={
+                                    {
+                                      id: uploadedMedia.id,
+                                      status: 'pending',
+                                    } as any
+                                  }
+                                  triggeringAnalysisId={null}
+                                  handleTriggerAnalysis={() => {}}
+                                  trackPeople={ocTrackPeople}
+                                  trackVehicles={ocTrackVehicles}
+                                  trackCustom={ocTrackCustom}
                                   selectedCustomClasses={
                                     ocSelectedCustomClasses
                                   }
-                                  setSelectedCustomClasses={
-                                    setOcSelectedCustomClasses
-                                  }
-                                  toggleCustomClass={toggleCustomClass}
-                                  customSearchQuery={ocCustomSearchQuery}
-                                  setCustomSearchQuery={setOcCustomSearchQuery}
+                                  hideRunButton={true}
                                 />
-                                <div className="mt-4 flex justify-end border-t border-[#1E3048]/40 pt-2">
+                                <div className="mt-4 flex justify-end">
                                   <button
                                     onClick={() => setActiveStep('run')}
                                     className="flex items-center gap-1.5 rounded-lg bg-[#1565C0] px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2]"
                                   >
-                                    Next: Model Parameters
+                                    Confirm my Configuration
                                     <ArrowRight className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -1301,47 +1605,394 @@ function AnalysisPageContent() {
 
                         {selectedAnalyses.personAnalysis && (
                           <div className="people-analytics-config-wrapper flex h-full flex-1 flex-col space-y-4">
+                            {/* Configure header with PlayCircle toggle + Confirm */}
+                            <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => setActiveStep('select')}
+                                  className="flex items-center gap-1 rounded-md border border-[#1E3048] px-2.5 py-1.5 text-[11px] text-[#5A7A9A] transition-colors hover:border-[#1565C0]/40 hover:text-[#E8EDF5]"
+                                >
+                                  <ArrowLeft className="h-3 w-3" /> Back
+                                </button>
+                                <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                                  <Users className="h-4 w-4 text-[#1565C0]" />
+                                  Configure People Analytics
+                                </h2>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {/* Video preview icon toggle */}
+                                {uploadedMedia && (
+                                  <button
+                                    title={
+                                      showPersonConfigVideoPreview
+                                        ? 'Hide source video'
+                                        : 'Preview source video'
+                                    }
+                                    onClick={() =>
+                                      setShowPersonConfigVideoPreview((v) => !v)
+                                    }
+                                    className={cn(
+                                      'flex h-8 w-8 items-center justify-center rounded-lg border transition-all duration-200',
+                                      showPersonConfigVideoPreview
+                                        ? 'border-[#1565C0] bg-[#1565C0] text-white shadow-lg shadow-[#1565C0]/50'
+                                        : 'border-[#1565C0]/40 bg-[#1565C0]/10 text-[#60A5FA] hover:bg-[#1565C0]/25 hover:shadow-md hover:shadow-[#1565C0]/30',
+                                    )}
+                                  >
+                                    <PlayCircle className="h-4 w-4" />
+                                  </button>
+                                )}
+                                {/* Confirm button — moves to Run step */}
+                                <button
+                                  title="Suggestion: Draw line to get accurate results"
+                                  onClick={() => setActiveStep('run')}
+                                  className="flex items-center gap-1.5 rounded-lg bg-[#1565C0] px-3.5 py-1.5 text-xs font-semibold text-white shadow-md shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2]"
+                                >
+                                  Confirm
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Collapsible inline video preview for configure */}
+                            {showPersonConfigVideoPreview && uploadedMedia && (
+                              <div className="overflow-hidden rounded-xl border border-[#1565C0]/20 bg-[#0A0F1E] shadow-lg">
+                                <div className="flex items-center justify-between border-b border-[#1E3048]/60 px-3 py-2">
+                                  <span className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
+                                    Source Video
+                                  </span>
+                                  <span className="max-w-[180px] truncate text-[10px] text-[#E8EDF5]">
+                                    {uploadedMedia.filename}
+                                  </span>
+                                </div>
+                                <video
+                                  src={getGalleryMediaUrl(
+                                    uploadedMedia.filepath,
+                                  )}
+                                  controls
+                                  preload="metadata"
+                                  className="max-h-[220px] w-full object-contain"
+                                />
+                              </div>
+                            )}
+
                             <PersonAnalysisConfigTab
-                              showThresholds={activeStep === 'run'}
-                              isReadOnly={activeStep === 'run'}
+                              showThresholds={false}
+                              isReadOnly={false}
                               onRun={handlePersonProcessWrapper}
                               running={personProcessing}
                             />
                           </div>
                         )}
 
-                        {/* Unified Run Button for non-Object Count analyses */}
-                        {!selectedAnalyses.objectCount &&
-                          !selectedAnalyses.personAnalysis && (
-                            <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
-                              <button
-                                disabled={
-                                  running || isPersonAnalysisConfiguring
-                                }
-                                onClick={runAnalyses}
-                                className={cn(
-                                  'flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all',
-                                  isPersonAnalysisConfiguring
-                                    ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-60'
-                                    : 'bg-[#1565C0] shadow-[#1565C0]/20 hover:bg-[#1976D2]',
+                        {/* Activity Detection configure */}
+                        {selectedAnalyses.activityDetection &&
+                          selectedActivityDetector &&
+                          (() => {
+                            const det = getDetectorDef(
+                              selectedActivityDetector,
+                            );
+                            const DetIcon = det.Icon;
+                            if (selectedActivityDetector === 'smoking') {
+                              return (
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                                    <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                                      <Activity className="h-4 w-4 text-[#1565C0]" />
+                                      Configure Activity Detection
+                                    </h2>
+                                    <button
+                                      onClick={() => setActiveStep('select')}
+                                      className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
+                                    >
+                                      <ArrowLeft className="h-3.5 w-3.5" /> Back
+                                    </button>
+                                  </div>
+                                  {/* Smoking — info only, no extra config */}
+                                  <div
+                                    className={`rounded-xl border p-5 ${det.accentBorder}`}
+                                    style={{ background: `${det.accent}10` }}
+                                  >
+                                    <div className="mb-4 flex items-center gap-3">
+                                      <div
+                                        className="rounded-xl p-3"
+                                        style={{
+                                          background: `${det.accent}20`,
+                                        }}
+                                      >
+                                        <DetIcon
+                                          className="h-6 w-6"
+                                          style={{ color: det.accent }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <p className="text-sm font-semibold text-[#E8EDF5]">
+                                          {det.label}
+                                        </p>
+                                        <p className="text-xs text-[#5A7A9A]">
+                                          {det.description}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2.5">
+                                      {[
+                                        {
+                                          e: '🚬',
+                                          t: 'Cigarette Detection',
+                                          d: 'YOLOv8 detector trained to identify cigarettes in any lighting.',
+                                        },
+                                        {
+                                          e: '🔥',
+                                          t: 'Lit Tip Confirmation',
+                                          d: 'Colour-temperature analysis confirms active burning tip.',
+                                        },
+                                        {
+                                          e: '💨',
+                                          t: 'Smoke Plume Analysis',
+                                          d: 'Optical flow detects rising smoke linked to the detected object.',
+                                        },
+                                        {
+                                          e: '🧠',
+                                          t: 'Multi-Signal Fusion',
+                                          d: 'All signals combined into a confidence score.',
+                                        },
+                                      ].map(({ e, t, d }) => (
+                                        <div
+                                          key={t}
+                                          className="flex items-start gap-3"
+                                        >
+                                          <span className="mt-0.5 text-base leading-none">
+                                            {e}
+                                          </span>
+                                          <div>
+                                            <p className="text-xs font-semibold text-[#E8EDF5]">
+                                              {t}
+                                            </p>
+                                            <p className="mt-0.5 text-[11px] text-[#5A7A9A]">
+                                              {d}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                  {/* Frame interval */}
+                                  <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <span className="text-xs font-medium text-[#5A7A9A]">
+                                        Frame sampling interval
+                                      </span>
+                                      <span className="rounded-md bg-[#1E3048] px-2 py-0.5 font-mono text-xs font-semibold text-[#E8EDF5]">
+                                        {stepLabel(actSliderStep)}
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min={SLIDER_MIN}
+                                      max={SLIDER_MAX}
+                                      step={1}
+                                      value={actSliderStep}
+                                      onChange={(e) =>
+                                        actSetInterval(
+                                          stepToInterval(
+                                            Number(e.target.value),
+                                          ),
+                                        )
+                                      }
+                                      className="w-full accent-amber-500"
+                                    />
+                                    <div className="mt-1 flex justify-between text-[9px] text-[#5A7A9A]">
+                                      <span>1 frame</span>
+                                      <span>← 1.0s →</span>
+                                      <span>5.0s</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <button
+                                      onClick={() => setActiveStep('run')}
+                                      className="flex items-center gap-1.5 rounded-lg bg-[#1565C0] px-5 py-2.5 text-xs font-semibold text-white shadow-md transition-all hover:bg-[#1976D2]"
+                                    >
+                                      Confirm my Configuration
+                                      <ArrowRight className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            // Generic activity detector config
+                            const DETECTOR_TO_FLAG: Record<
+                              string,
+                              keyof typeof actDetectFlags
+                            > = {
+                              fall: 'fall',
+                              fighting: 'aggression',
+                              trespassing: 'intrusion',
+                              loitering: 'loitering',
+                              occupancy: 'occupancy',
+                              sleeping: 'sleeping',
+                              walking: 'walking',
+                            };
+                            const primaryFlagKey =
+                              DETECTOR_TO_FLAG[selectedActivityDetector];
+                            return (
+                              <div className="space-y-4">
+                                <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                                  <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                                    <Activity className="h-4 w-4 text-[#1565C0]" />
+                                    Configure — {det.label}
+                                  </h2>
+                                  <button
+                                    onClick={() => setActiveStep('select')}
+                                    className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
+                                  >
+                                    <ArrowLeft className="h-3.5 w-3.5" /> Back
+                                  </button>
+                                </div>
+                                {/* Detector header */}
+                                <div
+                                  className={`flex items-center gap-3 rounded-xl border p-4 ${det.accentBorder}`}
+                                  style={{ background: `${det.accent}10` }}
+                                >
+                                  <div
+                                    className="rounded-xl p-2.5"
+                                    style={{ background: `${det.accent}20` }}
+                                  >
+                                    <DetIcon
+                                      className="h-5 w-5"
+                                      style={{ color: det.accent }}
+                                    />
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-semibold text-[#E8EDF5]">
+                                      {det.label}
+                                    </p>
+                                    <p className="text-[11px] text-[#5A7A9A]">
+                                      {det.description}
+                                    </p>
+                                  </div>
+                                </div>
+                                {/* Polygon ROI if needed */}
+                                {actShowROI && uploadedMedia && (
+                                  <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                                    <p className="mb-2 text-xs font-semibold tracking-wider text-[#5A7A9A] uppercase">
+                                      Region of Interest (ROI)
+                                    </p>
+                                    <p className="mb-3 text-[11px] text-[#5A7A9A]">
+                                      Draw a polygon zone used for {det.label}.
+                                    </p>
+                                    <PolygonCanvas
+                                      localFile={null}
+                                      savedPath={uploadedMedia.filepath}
+                                      mediaType="video"
+                                      required={actShowROI}
+                                      onConfirm={(pts) =>
+                                        actSetPolygonPoints(pts)
+                                      }
+                                      onClear={() => actSetPolygonPoints(null)}
+                                    />
+                                  </div>
                                 )}
-                              >
-                                {running ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    Triggering Analyses...
-                                  </>
-                                ) : isPersonAnalysisConfiguring ? (
-                                  'Complete People Analytics Setup (in Configuration tab above)'
-                                ) : (
-                                  <>
-                                    <Play className="h-4 w-4 fill-current" />
-                                    Run Selected Analyses
-                                  </>
+                                {/* Loitering threshold */}
+                                {actDetectFlags.loitering && (
+                                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <label className="text-xs font-medium text-[#E8EDF5]">
+                                        Loitering threshold time
+                                      </label>
+                                      <span className="text-xs font-bold text-amber-400">
+                                        {actLoiteringThreshold} seconds
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="range"
+                                      min={5}
+                                      max={120}
+                                      step={5}
+                                      value={actLoiteringThreshold}
+                                      onChange={(e) =>
+                                        actSetLoiteringThreshold(
+                                          Number(e.target.value),
+                                        )
+                                      }
+                                      className="w-full accent-amber-500"
+                                    />
+                                    <div className="flex justify-between text-[9px] text-[#5A7A9A]">
+                                      <span>5s strict</span>
+                                      <span>120s lenient</span>
+                                    </div>
+                                  </div>
                                 )}
-                              </button>
-                            </div>
-                          )}
+                                {/* Occupancy limit */}
+                                {actDetectFlags.occupancy && (
+                                  <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                                    <div className="mb-2 flex items-center justify-between">
+                                      <label className="text-xs font-medium text-[#E8EDF5]">
+                                        Max allowed persons
+                                      </label>
+                                      <span className="text-xs font-bold text-cyan-400">
+                                        {actOccupancyLimit} persons
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      max={100}
+                                      value={actOccupancyLimit}
+                                      onChange={(e) =>
+                                        actSetOccupancyLimit(
+                                          Number(e.target.value),
+                                        )
+                                      }
+                                      className="w-full rounded-lg border border-[#1E3048] bg-[#0A0F1E] px-3 py-2 text-xs text-[#E8EDF5] outline-none focus:border-cyan-500/40"
+                                    />
+                                  </div>
+                                )}
+                                {/* Frame interval */}
+                                <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                                  <div className="mb-2 flex items-center justify-between">
+                                    <span className="text-xs font-medium text-[#5A7A9A]">
+                                      Frame sampling interval
+                                    </span>
+                                    <span className="rounded-md bg-[#1E3048] px-2 py-0.5 font-mono text-xs font-semibold text-[#E8EDF5]">
+                                      {stepLabel(actSliderStep)}
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={SLIDER_MIN}
+                                    max={SLIDER_MAX}
+                                    step={1}
+                                    value={actSliderStep}
+                                    onChange={(e) =>
+                                      actSetInterval(
+                                        stepToInterval(Number(e.target.value)),
+                                      )
+                                    }
+                                    className="w-full accent-amber-500"
+                                  />
+                                  <div className="mt-1 flex justify-between text-[9px] text-[#5A7A9A]">
+                                    <span>1 frame</span>
+                                    <span>← 1.0s →</span>
+                                    <span>5.0s</span>
+                                  </div>
+                                </div>
+                                <div className="flex justify-end">
+                                  <button
+                                    disabled={actShowROI && !actPolygonPoints}
+                                    onClick={() => setActiveStep('run')}
+                                    className={cn(
+                                      'flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-xs font-semibold text-white shadow-md transition-all',
+                                      actShowROI && !actPolygonPoints
+                                        ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-50'
+                                        : 'bg-[#1565C0] hover:bg-[#1976D2]',
+                                    )}
+                                  >
+                                    Confirm my Configuration
+                                    <ArrowRight className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
                       </div>
                     )}
 
@@ -1352,69 +2003,401 @@ function AnalysisPageContent() {
                             <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
                               <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
                                 <BarChart2 className="h-4 w-4 text-[#1565C0]" />
-                                Run Object Count
+                                Run {selectedClassName} Count
                               </h2>
                               <button
                                 onClick={() => setActiveStep('configure')}
                                 className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
                               >
-                                <ArrowLeft className="h-3.5 w-3.5" /> Back to
-                                categories
+                                <ArrowLeft className="h-3.5 w-3.5" /> Edit
+                                Config
                               </button>
                             </div>
 
                             {uploadedMedia && (
-                              <AdvancedConfiguration
-                                confidenceThreshold={ocConfidence}
-                                setConfidenceThreshold={setOcConfidence}
-                                minTrackFrames={ocMinTrackFrames}
-                                setMinTrackFrames={setOcMinTrackFrames}
-                                trackBuffer={ocTrackBuffer}
-                                setTrackBuffer={setOcTrackBuffer}
-                                gmcMethod={ocGmc}
-                                setGmcMethod={setOcGmc}
-                                imgsz={ocResolution}
-                                setImgsz={setOcResolution}
-                                device={ocDevice}
-                                setDevice={setOcDevice}
-                                availableReidClasses={availableReidClasses}
-                                reidClasses={ocReidClasses}
-                                setReidClasses={setOcReidClasses}
-                                details={
-                                  {
-                                    id: uploadedMedia.id,
-                                    status: 'pending',
-                                  } as any
-                                }
-                                triggeringAnalysisId={
-                                  running ? uploadedMedia.id : null
-                                }
-                                handleTriggerAnalysis={runAnalyses}
-                                trackPeople={ocTrackPeople}
-                                trackVehicles={ocTrackVehicles}
-                                trackCustom={ocTrackCustom}
-                                selectedCustomClasses={ocSelectedCustomClasses}
-                              />
+                              <div className="space-y-4 rounded-xl border border-[#1E3048] bg-[#0D1628] p-5 shadow-xl">
+                                <div className="flex items-center gap-1.5 border-b border-[#1E3048] pb-3 text-[#E8EDF5]">
+                                  <Sliders className="h-4 w-4 text-[#1565C0]" />
+                                  <h3 className="text-xs font-semibold tracking-wider uppercase">
+                                    Configuration Review
+                                  </h3>
+                                </div>
+
+                                <div className="space-y-4">
+                                  {/* Target Class */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Target Class to Track
+                                      </span>
+                                      <span className="rounded bg-[#1565C0]/20 px-2 py-0.5 text-xs font-semibold text-[#60A5FA]">
+                                        {selectedClassName}
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        The object category that the AI will
+                                        detect, track, and count in the video
+                                        feed.
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* Confidence */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Detection Confidence
+                                      </span>
+                                      <span className="font-mono text-xs font-semibold text-[#E8EDF5]">
+                                        {ocConfidence.toFixed(2)}
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        Minimum confidence score for detections.
+                                        Higher values reduce false positives but
+                                        might miss smaller/obscure objects.
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* Min Track Duration */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Min Track Duration
+                                      </span>
+                                      <span className="font-mono text-xs font-semibold text-[#E8EDF5]">
+                                        {ocMinTrackFrames} frames
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        Objects must be tracked for this many
+                                        frames before being counted to filter
+                                        out brief glitches or errors.
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* Memory Buffer */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Track Memory Buffer
+                                      </span>
+                                      <span className="font-mono text-xs font-semibold text-[#E8EDF5]">
+                                        {ocTrackBuffer} frames
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        How long the tracker remembers an object
+                                        if it gets temporarily blocked/hidden
+                                        behind another object.
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* GMC Method */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Global Motion Compensation (GMC)
+                                      </span>
+                                      <span className="text-xs font-semibold text-[#E8EDF5] uppercase">
+                                        {ocGmc}
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        Stabilizes tracking when the camera
+                                        moves (panning/zooming) to prevent
+                                        tracking errors.
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* Resolution */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Inference Resolution
+                                      </span>
+                                      <span className="font-mono text-xs font-semibold text-[#E8EDF5]">
+                                        {ocResolution}px
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        Frame resolution passed to YOLO. Higher
+                                        resolution improves small object
+                                        detection but increases computation
+                                        time.
+                                      </span>
+                                    </p>
+                                  </div>
+
+                                  {/* Hardware Device */}
+                                  <div className="flex flex-col gap-1 rounded-lg border border-[#1E3048]/30 bg-[#0A0F1E]/40 p-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="flex items-center gap-1.5 text-xs font-medium text-[#E8EDF5]">
+                                        Execution Device
+                                      </span>
+                                      <span className="text-xs font-semibold text-[#E8EDF5] capitalize">
+                                        {ocDevice || 'Auto-detect'}
+                                      </span>
+                                    </div>
+                                    <p className="flex items-start gap-1 text-[10px] leading-normal text-[#5A7A9A]">
+                                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#1565C0]" />
+                                      <span>
+                                        The hardware hardware device (CPU/GPU)
+                                        used to run the deep learning model.
+                                      </span>
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="border-t border-[#1E3048]/50 pt-4">
+                                  <button
+                                    disabled={running}
+                                    onClick={runAnalyses}
+                                    className={cn(
+                                      'flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#1565C0] text-sm font-semibold text-white shadow-md shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2] disabled:pointer-events-none disabled:opacity-40',
+                                    )}
+                                  >
+                                    {running ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Running Analysis...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play className="h-4 w-4 fill-white" />
+                                        Run {selectedClassName} Count
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
                             )}
                           </div>
                         )}
+
+                        {/* Person Analysis run confirmation card */}
+                        {selectedAnalyses.personAnalysis && (
+                          <div className="people-analytics-run-wrapper space-y-4">
+                            <div className="flex items-center justify-between rounded-xl border border-[#1E3048] bg-[#0D1628] p-4">
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => setActiveStep('configure')}
+                                  className="flex items-center gap-1 rounded-md border border-[#1E3048] px-2.5 py-1.5 text-[11px] text-[#5A7A9A] transition-colors hover:border-[#1565C0]/40 hover:text-[#E8EDF5]"
+                                >
+                                  <ArrowLeft className="h-3 w-3" /> Edit Config
+                                </button>
+                                <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                                  <Users className="h-4 w-4 text-[#1565C0]" />
+                                  Run People Analytics
+                                </h2>
+                              </div>
+                              {/* Video preview icon toggle */}
+                              {uploadedMedia && (
+                                <button
+                                  title={
+                                    showPersonVideoPreview
+                                      ? 'Hide source video'
+                                      : 'Preview source video'
+                                  }
+                                  onClick={() =>
+                                    setShowPersonVideoPreview((v) => !v)
+                                  }
+                                  className={cn(
+                                    'flex h-8 w-8 items-center justify-center rounded-lg border transition-all duration-200',
+                                    showPersonVideoPreview
+                                      ? 'border-[#1565C0] bg-[#1565C0] text-white shadow-lg shadow-[#1565C0]/50'
+                                      : 'border-[#1565C0]/40 bg-[#1565C0]/10 text-[#60A5FA] hover:bg-[#1565C0]/25 hover:shadow-md hover:shadow-[#1565C0]/30',
+                                  )}
+                                >
+                                  <PlayCircle className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Collapsible inline video preview */}
+                            {showPersonVideoPreview && uploadedMedia && (
+                              <div className="overflow-hidden rounded-xl border border-[#1565C0]/20 bg-[#0A0F1E] shadow-lg">
+                                <div className="flex items-center justify-between border-b border-[#1E3048]/60 px-3 py-2">
+                                  <span className="text-[10px] font-semibold tracking-wider text-[#5A7A9A] uppercase">
+                                    Source Video
+                                  </span>
+                                  <span className="max-w-[180px] truncate text-[10px] text-[#E8EDF5]">
+                                    {uploadedMedia.filename}
+                                  </span>
+                                </div>
+                                <video
+                                  src={getGalleryMediaUrl(
+                                    uploadedMedia.filepath,
+                                  )}
+                                  controls
+                                  preload="metadata"
+                                  className="max-h-[220px] w-full object-contain"
+                                />
+                              </div>
+                            )}
+
+                            <PersonAnalysisConfigTab
+                              showThresholds={true}
+                              isReadOnly={true}
+                              onRun={handlePersonProcessWrapper}
+                              running={personProcessing}
+                            />
+                          </div>
+                        )}
+
+                        {/* Activity Detection run confirmation card */}
+
+                        {selectedAnalyses.activityDetection &&
+                          selectedActivityDetector &&
+                          (() => {
+                            const det = getDetectorDef(
+                              selectedActivityDetector,
+                            );
+                            const DetIcon = det.Icon;
+                            return (
+                              <div className="space-y-4">
+                                <div className="rounded-xl border border-[#1E3048] bg-[#0D1628] p-5">
+                                  <div className="mb-4 flex items-center justify-between">
+                                    <h2 className="flex items-center gap-2 text-sm font-semibold text-[#E8EDF5]">
+                                      <Activity className="h-4 w-4 text-[#1565C0]" />
+                                      Activity Detection — Ready to Run
+                                    </h2>
+                                    <button
+                                      onClick={() => setActiveStep('configure')}
+                                      className="flex items-center gap-1 text-xs text-[#5A7A9A] hover:text-[#E8EDF5]"
+                                    >
+                                      <ArrowLeft className="h-3.5 w-3.5" /> Edit
+                                      Config
+                                    </button>
+                                  </div>
+                                  <div
+                                    className={`mb-4 flex items-center gap-3 rounded-xl border p-4 ${det.accentBorder}`}
+                                    style={{ background: `${det.accent}10` }}
+                                  >
+                                    <div
+                                      className="rounded-xl p-2.5"
+                                      style={{ background: `${det.accent}20` }}
+                                    >
+                                      <DetIcon
+                                        className="h-5 w-5"
+                                        style={{ color: det.accent }}
+                                      />
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-semibold text-[#E8EDF5]">
+                                        {det.label}
+                                      </p>
+                                      <p className="text-[11px] text-[#5A7A9A]">
+                                        {det.description}
+                                      </p>
+                                    </div>
+                                    <span
+                                      className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${det.accentBg} ${det.accentText}`}
+                                    >
+                                      {stepLabel(actSliderStep)} interval
+                                    </span>
+                                  </div>
+                                  {actShowROI && actPolygonPoints && (
+                                    <p className="mb-3 text-[11px] text-emerald-400">
+                                      ✓ Polygon ROI configured (
+                                      {actPolygonPoints.length} points)
+                                    </p>
+                                  )}
+                                  {actDetectFlags.loitering && (
+                                    <p className="mb-1 text-[11px] text-[#5A7A9A]">
+                                      Loitering threshold:{' '}
+                                      <span className="font-semibold text-[#E8EDF5]">
+                                        {actLoiteringThreshold}s
+                                      </span>
+                                    </p>
+                                  )}
+                                  {actDetectFlags.occupancy && (
+                                    <p className="mb-1 text-[11px] text-[#5A7A9A]">
+                                      Occupancy limit:{' '}
+                                      <span className="font-semibold text-[#E8EDF5]">
+                                        {actOccupancyLimit} persons
+                                      </span>
+                                    </p>
+                                  )}
+
+                                  {/* Smoking Detection — Model Preview Demo */}
+                                  {selectedActivityDetector === 'smoking' && (
+                                    <div className="mb-3 overflow-hidden rounded-xl border border-amber-500/20 bg-[#0A0F1E]">
+                                      <div className="flex items-center justify-between border-b border-[#1E3048]/60 px-3 py-2">
+                                        <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider text-amber-400/80 uppercase">
+                                          <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                                          Model Preview
+                                        </span>
+                                        <span className="text-[9px] text-[#5A7A9A]">
+                                          Example inference output
+                                        </span>
+                                      </div>
+                                      <div className="relative">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src="/smoking_detection_demo.png"
+                                          alt="Smoking detection model output example — bounding boxes around cigarette and smoke plume"
+                                          className="max-h-[260px] w-full object-cover object-top"
+                                        />
+                                        {/* Detection label overlays */}
+                                        <div className="absolute bottom-2 left-2 flex flex-wrap gap-1.5">
+                                          <span className="rounded bg-[#CCFF00]/90 px-1.5 py-0.5 text-[9px] font-bold text-black">
+                                            cigarette 0.91
+                                          </span>
+                                          <span className="rounded bg-orange-500/90 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                                            smoke_plume 0.78
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <button
+                                    disabled={running || actSubmitting}
+                                    onClick={runAnalyses}
+                                    className={cn(
+                                      'mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-semibold text-white shadow-md transition-all',
+                                      running || actSubmitting
+                                        ? 'cursor-not-allowed bg-[#1E3048] text-[#5A7A9A] opacity-60'
+                                        : 'bg-[#1565C0] shadow-[#1565C0]/20 hover:bg-[#1976D2]',
+                                    )}
+                                  >
+                                    {running || actSubmitting ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                        Starting Analysis...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play className="h-4 w-4 fill-current" />{' '}
+                                        Run {det.label}
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })()}
                       </div>
                     )}
                   </div>
 
-                  {/* Step 3 (Configure) Actions: Proceed to Run */}
-                  {activeStep === 'configure' &&
-                    selectedAnalyses.personAnalysis && (
-                      <div className="col-span-full mt-2">
-                        <button
-                          onClick={() => setActiveStep('run')}
-                          className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl bg-[#1565C0] py-3.5 text-sm font-bold text-white shadow-lg shadow-[#1565C0]/20 transition-all hover:bg-[#1976D2] hover:shadow-[#1565C0]/35"
-                        >
-                          Proceed to Review &amp; Run
-                          <ArrowRight className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
+                  {/* (Configure → Run button now lives in the header bar above) */}
                 </>
               )}
             </div>

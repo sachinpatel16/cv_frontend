@@ -85,8 +85,8 @@ export async function processActivityMedia(
 ): Promise<ApiResponse<ActivityMedia>> {
   try {
     const response = await apiClient.post<ApiResponse<ActivityMedia>>(
-      `${API_ENDPOINTS.ACTIVITY.MEDIA}/${mediaId}/process`,
-      payload,
+      API_ENDPOINTS.ACTIVITY.PROCESS,
+      { gallery_media_id: mediaId, ...payload },
     );
     return response.data;
   } catch (error) {
@@ -106,7 +106,7 @@ export async function getActivityProcessStatus(
 ): Promise<ApiResponse<ActivityProcessStatus>> {
   try {
     const response = await apiClient.get<ApiResponse<ActivityProcessStatus>>(
-      `${API_ENDPOINTS.ACTIVITY.MEDIA}/${mediaId}/process`,
+      `${API_ENDPOINTS.ACTIVITY.PROCESS}/${mediaId}`,
     );
     return response.data;
   } catch (error) {
@@ -126,7 +126,7 @@ export async function getActivityProcessHistory(
 ): Promise<ApiResponse<ActivityAlert[]>> {
   try {
     const response = await apiClient.get<ApiResponse<ActivityAlert[]>>(
-      `${API_ENDPOINTS.ACTIVITY.MEDIA}/${mediaId}/process/history`,
+      `${API_ENDPOINTS.ACTIVITY.PROCESS}/${mediaId}/history`,
     );
     return response.data;
   } catch (error) {

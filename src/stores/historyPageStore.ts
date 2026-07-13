@@ -4,9 +4,10 @@ import { deleteObjectCountMedia } from '@/lib/api/objectcount';
 import { deleteAnalyticsSession } from '@/lib/api/peopleanalytics';
 import { useObjectCountingStore } from './objectCountingStore';
 import { usePersonAnalysisStore } from './personAnalysisStore';
+import { useActivityDetectionStore } from './activityDetectionStore';
 
 type ViewMode = 'list' | 'results';
-type ResultsTabName = 'object-count' | 'person-analysis';
+type ResultsTabName = 'object-count' | 'person-analysis' | 'activity-detection';
 
 interface HistoryPageState {
   viewMode: ViewMode;
@@ -17,9 +18,15 @@ interface HistoryPageState {
   setLoading: (l: boolean) => void;
 
   // Custom Modal Delete State
-  itemToDelete: { id: string; type: 'object-count' | 'person-analysis' } | null;
+  itemToDelete: {
+    id: string;
+    type: 'object-count' | 'person-analysis' | 'activity-detection';
+  } | null;
   setItemToDelete: (
-    item: { id: string; type: 'object-count' | 'person-analysis' } | null,
+    item: {
+      id: string;
+      type: 'object-count' | 'person-analysis' | 'activity-detection';
+    } | null,
   ) => void;
 
   // Actions
@@ -44,7 +51,13 @@ export const useHistoryPageStore = create<HistoryPageState>((set, get) => ({
       const fetchObjectCountRuns = useObjectCountingStore.getState().fetchMedia;
       const fetchPersonSessions =
         usePersonAnalysisStore.getState().fetchSessions;
-      await Promise.allSettled([fetchObjectCountRuns(), fetchPersonSessions()]);
+      const fetchActivityHistory =
+        useActivityDetectionStore.getState().fetchHistory;
+      await Promise.allSettled([
+        fetchObjectCountRuns(),
+        fetchPersonSessions(),
+        fetchActivityHistory(),
+      ]);
     } finally {
       set({ loading: false });
     }
@@ -56,8 +69,10 @@ export const useHistoryPageStore = create<HistoryPageState>((set, get) => ({
     try {
       if (itemToDelete.type === 'object-count') {
         await deleteObjectCountMedia(itemToDelete.id);
-      } else {
+      } else if (itemToDelete.type === 'person-analysis') {
         await deleteAnalyticsSession(itemToDelete.id);
+      } else {
+        await useActivityDetectionStore.getState().removeMedia(itemToDelete.id);
       }
       toast.success('Investigation deleted successfully');
       set({ itemToDelete: null });

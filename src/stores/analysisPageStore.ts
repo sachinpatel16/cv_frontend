@@ -4,6 +4,7 @@ import type { GalleryMedia } from '@/types/gallery';
 import toast from 'react-hot-toast';
 import { useObjectCountingStore } from './objectCountingStore';
 import { usePersonAnalysisStore } from './personAnalysisStore';
+import type { ActivityDetectorId } from './activityDetectionStore';
 
 export type Step =
   | 'history'
@@ -16,6 +17,8 @@ export type ResultsTabName =
   | 'object-count'
   | 'person-analysis'
   | 'activity-detection';
+
+export type { ActivityDetectorId };
 
 interface AnalysisPageState {
   activeStep: Step;
@@ -30,7 +33,7 @@ interface AnalysisPageState {
   loadingGallery: boolean;
   fetchGalleryList: () => Promise<void>;
 
-  // Checklist selection
+  // Single-selection analysis
   selectedAnalyses: {
     objectCount: boolean;
     personAnalysis: boolean;
@@ -44,6 +47,10 @@ interface AnalysisPageState {
   toggleAnalysis: (
     key: 'objectCount' | 'personAnalysis' | 'activityDetection',
   ) => void;
+
+  // Activity sub-detector (single selection)
+  selectedActivityDetector: ActivityDetectorId | null;
+  setSelectedActivityDetector: (id: ActivityDetectorId | null) => void;
 
   // Clear states
   clearMedia: () => void;
@@ -77,13 +84,26 @@ export const useAnalysisPageStore = create<AnalysisPageState>((set, get) => ({
     activityDetection: false,
   },
   setSelectedAnalyses: (val) => set({ selectedAnalyses: val }),
+  // Radio-style: selecting a new analysis deselects the previous one
   toggleAnalysis: (key) =>
-    set((state) => ({
-      selectedAnalyses: {
-        ...state.selectedAnalyses,
-        [key]: !state.selectedAnalyses[key],
-      },
-    })),
+    set((state) => {
+      const wasOn = state.selectedAnalyses[key];
+      return {
+        selectedAnalyses: {
+          objectCount: false,
+          personAnalysis: false,
+          activityDetection: false,
+          [key]: !wasOn,
+        },
+        // Reset sub-detector when deselecting activity
+        ...(key === 'activityDetection' && !wasOn === false
+          ? { selectedActivityDetector: null }
+          : {}),
+      };
+    }),
+
+  selectedActivityDetector: null,
+  setSelectedActivityDetector: (id) => set({ selectedActivityDetector: id }),
 
   clearMedia: () => {
     set({
@@ -94,6 +114,7 @@ export const useAnalysisPageStore = create<AnalysisPageState>((set, get) => ({
         personAnalysis: false,
         activityDetection: false,
       },
+      selectedActivityDetector: null,
     });
 
     // Safely reset downstream module stores

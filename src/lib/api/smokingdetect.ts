@@ -124,3 +124,25 @@ export async function deleteSmokingSession(
     throw new ApiError('An unexpected error occurred');
   }
 }
+
+/** Trigger smoking detection analysis by referencing a gallery media ID */
+export async function triggerSmokingAnalysis(
+  galleryMediaId: string,
+  interval = 1.0,
+): Promise<ApiResponse<SmokingSession>> {
+  try {
+    const response = await apiClient.post<ApiResponse<SmokingSession>>(
+      '/smokingdetect/analyze',
+      { gallery_media_id: galleryMediaId, interval },
+    );
+    return response.data;
+  } catch (error) {
+    if (error instanceof AxiosError) {
+      throw new ApiError(
+        error.response?.data?.message || 'Failed to trigger smoking analysis',
+        error.response?.status,
+      );
+    }
+    throw new ApiError('An unexpected error occurred');
+  }
+}

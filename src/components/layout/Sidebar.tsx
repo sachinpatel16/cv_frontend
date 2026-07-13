@@ -17,6 +17,7 @@ import {
 import { SERVICES_REGISTRY } from '@/lib/services';
 import { cn } from '@/lib/utils';
 import { logout } from '@/lib/api/auth';
+import { useUserStore } from '@/stores/userStore';
 
 const topNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -63,6 +64,28 @@ function NavItem({
 }
 
 export function Sidebar() {
+  const {
+    showNewInvestigation,
+    showInvestigation,
+    showHistory,
+    showObjectCount,
+    showActivityDetection,
+    showPeopleAnalytics,
+    showGallery,
+  } = useUserStore();
+
+  const showService = (id: string, legacy?: boolean) => {
+    if (id === 'gallery') return showGallery;
+    if (!legacy) return true;
+    if (id === 'object-count') return showObjectCount;
+    if (id === 'activity-detection') return showActivityDetection;
+    if (id === 'people-analytics') return showPeopleAnalytics;
+    return true;
+  };
+
+  const hasLegacyServices =
+    showObjectCount || showActivityDetection || showPeopleAnalytics;
+
   return (
     <aside className="flex w-auto shrink-0 flex-col border-r border-[#1E3048] bg-[#0A0F1E]">
       {/* Logo */}
@@ -79,49 +102,67 @@ export function Sidebar() {
           <NavItem key={href} href={href} label={label} icon={icon} />
         ))}
 
-        <p className="mt-4 mb-1 px-3 text-[10px] font-semibold tracking-widest text-[#1E3048] uppercase">
-          Investigations
-        </p>
+        {(showNewInvestigation || showInvestigation || showHistory) && (
+          <>
+            <p className="mt-4 mb-1 px-3 text-[10px] font-semibold tracking-widest text-[#1E3048] uppercase">
+              Investigations
+            </p>
 
-        <NavItem
-          href="/investigations/new"
-          label="New Investigation"
-          icon={Microscope}
-        />
-
-        <NavItem
-          href="/services/analysis"
-          label="Investigation"
-          icon={FolderOpen}
-        />
-
-        <NavItem href="/services/history" label="History" icon={History} />
-
-        <div className="mt-4 mb-1 flex items-center gap-2 px-3">
-          <span className="text-[10px] font-semibold tracking-widest text-[#1E3048] uppercase">
-            Services
-          </span>
-          <span className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-rose-400 uppercase">
-            Legacy
-          </span>
-        </div>
-
-        {SERVICES_REGISTRY.map((s) => (
-          <div key={s.id} className="relative">
-            <NavItem
-              href={s.href}
-              label={s.label}
-              icon={s.icon}
-              disabled={s.comingSoon}
-              noHighlight={s.legacy}
-            />
-            {s.comingSoon && (
-              <span className="absolute top-1/2 right-3 -translate-y-1/2 rounded bg-[#F59E0B]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#F59E0B]">
-                Soon
-              </span>
+            {showNewInvestigation && (
+              <NavItem
+                href="/investigations/new"
+                label="New Investigation"
+                icon={Microscope}
+              />
             )}
+
+            {showInvestigation && (
+              <NavItem
+                href="/services/analysis"
+                label="Investigation"
+                icon={FolderOpen}
+              />
+            )}
+
+            {showHistory && (
+              <NavItem
+                href="/services/history"
+                label="History"
+                icon={History}
+              />
+            )}
+          </>
+        )}
+
+        {hasLegacyServices && (
+          <div className="mt-4 mb-1 flex items-center gap-2 px-3">
+            <span className="text-[10px] font-semibold tracking-widest text-[#1E3048] uppercase">
+              Services
+            </span>
+            <span className="rounded border border-rose-500/25 bg-rose-500/10 px-1.5 py-0.5 text-[8px] font-bold tracking-wider text-rose-400 uppercase">
+              Legacy
+            </span>
           </div>
-        ))}
+        )}
+
+        {SERVICES_REGISTRY.filter((s) => showService(s.id, s.legacy)).map(
+          (s) => (
+            <div key={s.id} className="relative">
+              <NavItem
+                href={s.href}
+                label={s.label}
+                icon={s.icon}
+                disabled={s.comingSoon}
+                noHighlight={s.legacy}
+              />
+              {s.comingSoon && (
+                <span className="absolute top-1/2 right-3 -translate-y-1/2 rounded bg-[#F59E0B]/10 px-1.5 py-0.5 text-[9px] font-semibold text-[#F59E0B]">
+                  Soon
+                </span>
+              )}
+            </div>
+          ),
+        )}
 
         <div className="mt-4 space-y-0.5 border-t border-[#1E3048] pt-3">
           {bottomNav.map(({ href, label, icon }) => (

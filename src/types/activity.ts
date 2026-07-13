@@ -63,8 +63,9 @@ export interface ActivityAlertSummary {
   by_severity: Record<string, number>;
 }
 
-/** Payload for POST /activity/media/{id}/process */
+/** Payload for POST /activity/process */
 export interface ActivityProcessPayload {
+  gallery_media_id?: string;
   interval: number;
   detect_fall: boolean;
   detect_aggression: boolean;
@@ -91,6 +92,7 @@ export interface UnifiedHistoryItem {
   displayName: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
+  filepath?: string;
   // activity-only
   media_type?: 'photo' | 'video';
   config?: ActivityConfig | null;

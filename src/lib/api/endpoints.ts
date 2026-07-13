@@ -42,7 +42,7 @@ export const API_ENDPOINTS = {
     SESSIONS_HISTORY: '/smokingdetect/sessions/history',
   },
   ACTIVITY: {
-    MEDIA: '/activity/media',
+    MEDIA: '/gallery/media',
     PROCESS: '/activity/process',
     REPORT: '/activity/report',
     REPORT_SUMMARY: '/activity/report/summary',
